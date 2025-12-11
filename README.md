@@ -1,7 +1,5 @@
 # MyTube
 
-# MyTube
-
 MyTube is a lightweight, high-performance YouTube backend engine using:
 
 - `yt-dlp`
