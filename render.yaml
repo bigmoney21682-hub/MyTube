@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: mytube-backend
+    env: docker
+    branch: main
+    dockerfilePath: Dockerfile
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8080"
