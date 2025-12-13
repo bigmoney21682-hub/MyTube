@@ -1,13 +1,19 @@
 services:
   - type: web
     name: mytube-backend
-    env: docker
-    branch: main
-    dockerfilePath: Dockerfile
-    plan: free
-    autoDeploy: true
+    env: node
+    repo: https://github.com/your-repo/mytube  # Update to your repo
+    branch: main  # Or your branch
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: "8080"
+
+  - type: redis
+    name: mytube-cache
+    ipAllowList: []  # Allow all (or restrict)
+    plan: free
+    maxmemoryPolicy: allkeys-lru  # Optional eviction policy
+
+# Auto-links REDIS_URL to web service via dashboard or manual env var
