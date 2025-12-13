@@ -5,13 +5,12 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "postinstall": "node -e \"const YTDlpWrap = require('yt-dlp-wrap').default; YTDlpWrap.downloadFromGithub();\""
+    "start": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "node-cache": "^5.1.2",
-    "yt-dlp-wrap": "^3.0.0"
+    "youtube-dl-exec": "^3.0.27"
   }
 }
