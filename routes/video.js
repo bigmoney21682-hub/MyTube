@@ -1,23 +1,16 @@
-import express from "express";
-import cache from "../cache.js";
-import { runYtDlp } from "../utils/yt.js";
+import express from 'express';
+import { getVideoInfo } from '../utils/yt.js';
+import { cachedCall } from '../cache.js';
 
 const router = express.Router();
 
-router.get("/", async (req, res) => {
-  const id = req.query.id;
-  if (!id) return res.status(400).json({ error: "Missing ?id=xxxx" });
-
-  const cacheKey = `video_${id}`;
-  const cached = cache.get(cacheKey);
-  if (cached) return res.json(cached);
-
+router.get('/:videoId', async (req, res) => {
+  const { videoId } = req.params;
   try {
-    const data = await runYtDlp(`https://www.youtube.com/watch?v=${id}`);
-    cache.set(cacheKey, data, 3600);
+    const data = await cachedCall(`video:${videoId}`, getVideoInfo, videoId);
     res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: "yt-dlp failed", details: e.message });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
