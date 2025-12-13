@@ -1,8 +1,16 @@
-import NodeCache from "node-cache";
+import NodeCache from 'node-cache';
 
-const cache = new NodeCache({
-  stdTTL: 60 * 60,   // default TTL: 1 hour
-  checkperiod: 120
-});
+const cache = new NodeCache({ stdTTL: 86400, checkperiod: 600 });  // 24h TTL, check every 10 min
 
-export default cache;
+// Generic cache wrapper
+export async function cachedCall(key, fn, ...args) {
+  let data = cache.get(key);
+  if (data) {
+    console.log(`Cache hit: ${key}`);
+    return data;
+  }
+  data = await fn(...args);
+  cache.set(key, data);
+  console.log(`Cache set: ${key}`);
+  return data;
+}
