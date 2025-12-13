@@ -1,20 +1,16 @@
-import express from "express";
-import cache from "../cache.js";
-import { runYtDlp } from "../utils/yt.js";
+import express from 'express';
+import { getTrending } from '../utils/yt.js';
+import { cachedCall } from '../cache.js';
 
 const router = express.Router();
 
-router.get("/", async (req, res) => {
-  const cacheKey = "trending";
-  const cached = cache.get(cacheKey);
-  if (cached) return res.json(cached);
-
+router.get('/', async (req, res) => {
+  const { limit = 20 } = req.query;
   try {
-    const data = await runYtDlp("https://www.youtube.com/feed/trending");
-    cache.set(cacheKey, data, 3600);
+    const data = await cachedCall(`trending:${limit}`, getTrending, parseInt(limit));
     res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: "yt-dlp failed", details: e.message });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
