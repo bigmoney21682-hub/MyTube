@@ -1,13 +1,9 @@
 import ytdl from "youtube-dl-exec";
 
-/**
- * Explicit yt-dlp binary path (Render-safe)
- */
+/* Render-provided binary */
 const YTDLP_PATH = process.env.YTDLP_PATH || "yt-dlp";
 
-/**
- * Extract and normalize formats
- */
+/* -------------------- Helpers -------------------- */
 function extractFormats(formats) {
   if (!Array.isArray(formats)) return [];
 
@@ -26,9 +22,7 @@ function extractFormats(formats) {
     .sort((a, b) => (b.height || 0) - (a.height || 0));
 }
 
-/**
- * Fetch full video metadata + formats
- */
+/* -------------------- Video -------------------- */
 export async function getVideoInfo(videoId) {
   const url = `https://www.youtube.com/watch?v=${videoId}`;
 
@@ -38,114 +32,110 @@ export async function getVideoInfo(videoId) {
       skipDownload: true,
       noWarnings: true,
       socketTimeout: 30000,
-      execPath: YTDLP_PATH
+      binaryPath: YTDLP_PATH,
     });
 
     return {
       id: info.id,
-      title: info.title || "Unknown",
-      thumbnail: info.thumbnail || null,
-      duration: info.duration || 0,
-      uploader: info.uploader || "Unknown",
-      view_count: info.view_count || 0,
+      title: info.title,
+      thumbnail: info.thumbnail,
+      duration: info.duration,
+      uploader: info.uploader,
+      view_count: info.view_count,
       formats: extractFormats(info.formats),
       best_url: info.url || null,
     };
   } catch (err) {
-    console.error(`[yt-dlp] Failed for ${videoId}:`, err.message);
+    console.error(`[yt-dlp] video failed (${videoId})`, err);
     throw new Error(`yt-dlp error: ${err.message}`);
   }
 }
 
-/**
- * Search YouTube videos
- */
+/* -------------------- Search -------------------- */
 export async function searchVideos(query, limit = 10) {
-  const url = `ytsearch${limit}:${query}`;
+  const searchUrl = `ytsearch${limit}:${query}`;
 
   try {
-    const info = await ytdl(url, {
+    const info = await ytdl(searchUrl, {
       dumpSingleJson: true,
       skipDownload: true,
       noWarnings: true,
       socketTimeout: 30000,
-      execPath: YTDLP_PATH
+      binaryPath: YTDLP_PATH,
     });
 
     return (info.entries || []).map(video => ({
       id: video.id,
-      title: video.title || "Unknown",
-      thumbnail: video.thumbnail || null,
-      duration: video.duration || 0,
-      uploader: video.uploader || "Unknown",
-      view_count: video.view_count || 0,
+      title: video.title,
+      thumbnail: video.thumbnail,
+      duration: video.duration,
+      uploader: video.uploader,
+      view_count: video.view_count,
       formats: extractFormats(video.formats),
       best_url: video.url || null,
     }));
   } catch (err) {
-    console.error(`[yt-dlp] Search failed for "${query}":`, err.message);
+    console.error(`[yt-dlp] search failed (${query})`, err);
     throw new Error(`yt-dlp search error: ${err.message}`);
   }
 }
 
-/**
- * Fetch trending videos
- */
-export async function getTrending(limit = 10) {
-  const url = `https://www.youtube.com/feed/trending`;
-
+/* -------------------- Trending -------------------- */
+export async function getTrending(limit = 20) {
   try {
-    const info = await ytdl(url, {
+    const info = await ytdl("https://www.youtube.com/feed/trending", {
       dumpSingleJson: true,
       skipDownload: true,
       noWarnings: true,
       socketTimeout: 30000,
-      execPath: YTDLP_PATH
+      binaryPath: YTDLP_PATH,
     });
 
-    return (info.entries || []).slice(0, limit).map(video => ({
-      id: video.id,
-      title: video.title || "Unknown",
-      thumbnail: video.thumbnail || null,
-      duration: video.duration || 0,
-      uploader: video.uploader || "Unknown",
-      view_count: video.view_count || 0,
-      formats: extractFormats(video.formats),
-      best_url: video.url || null,
-    }));
+    return (info.entries || [])
+      .slice(0, limit)
+      .map(video => ({
+        id: video.id,
+        title: video.title,
+        thumbnail: video.thumbnail,
+        duration: video.duration,
+        uploader: video.uploader,
+        view_count: video.view_count,
+        formats: extractFormats(video.formats),
+        best_url: video.url || null,
+      }));
   } catch (err) {
-    console.error(`[yt-dlp] Trending fetch failed:`, err.message);
+    console.error("[yt-dlp] trending failed", err);
     throw new Error(`yt-dlp trending error: ${err.message}`);
   }
 }
 
-/**
- * Fetch videos from a specific channel
- */
-export async function getChannel(channelId, limit = 10) {
-  const url = `https://www.youtube.com/channel/${channelId}`;
+/* -------------------- Channel -------------------- */
+export async function getChannel(channelId, limit = 20) {
+  const channelUrl = `https://www.youtube.com/channel/${channelId}`;
 
   try {
-    const info = await ytdl(url, {
+    const info = await ytdl(channelUrl, {
       dumpSingleJson: true,
       skipDownload: true,
       noWarnings: true,
       socketTimeout: 30000,
-      execPath: YTDLP_PATH
+      binaryPath: YTDLP_PATH,
     });
 
-    return (info.entries || []).slice(0, limit).map(video => ({
-      id: video.id,
-      title: video.title || "Unknown",
-      thumbnail: video.thumbnail || null,
-      duration: video.duration || 0,
-      uploader: info.uploader || "Unknown",
-      view_count: video.view_count || 0,
-      formats: extractFormats(video.formats),
-      best_url: video.url || null,
-    }));
+    return (info.entries || [])
+      .slice(0, limit)
+      .map(video => ({
+        id: video.id,
+        title: video.title,
+        thumbnail: video.thumbnail,
+        duration: video.duration,
+        uploader: info.uploader,
+        view_count: video.view_count,
+        formats: extractFormats(video.formats),
+        best_url: video.url || null,
+      }));
   } catch (err) {
-    console.error(`[yt-dlp] Channel fetch failed for "${channelId}":`, err.message);
+    console.error(`[yt-dlp] channel failed (${channelId})`, err);
     throw new Error(`yt-dlp channel error: ${err.message}`);
   }
 }
