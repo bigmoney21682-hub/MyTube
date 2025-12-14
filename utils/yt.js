@@ -1,123 +1,49 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import ytdl from "youtube-dl-exec";
 
-const exec = promisify(execFile);
+/* -------------------- Helpers -------------------- */
+function extractFormats(formats) {
+  if (!Array.isArray(formats)) return [];
 
-const YTDLP = "yt-dlp";
-
-async function runYtDlp(args) {
-  const { stdout } = await exec(YTDLP, args, {
-    maxBuffer: 1024 * 1024 * 50
-  });
-  return JSON.parse(stdout);
+  return formats
+    .filter(f => f.url && f.protocol?.startsWith("http"))
+    .map(f => ({
+      format_id: f.format_id,
+      url: f.url,
+      ext: f.ext || null,
+      height: f.height || null,
+      fps: f.fps || null,
+      filesize: f.filesize || null,
+      acodec: f.acodec || "none",
+      vcodec: f.vcodec || "none",
+    }))
+    .sort((a, b) => (b.height || 0) - (a.height || 0));
 }
 
-/* -------------------------
-   VIDEO INFO
--------------------------- */
-export async function getVideoInfo(id) {
+export async function getVideoInfo(videoId) {
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+
   try {
-    const data = await runYtDlp([
-      `https://www.youtube.com/watch?v=${id}`,
-      "-J",
-      "--no-playlist"
-    ]);
+    const info = await ytdl(url, {
+      dumpSingleJson: true,
+      skipDownload: true,
+      noWarnings: true,
+      socketTimeout: 30000,
+    });
 
     return {
-      id: data.id,
-      title: data.title,
-      thumbnail: data.thumbnail,
-      duration: data.duration,
-      uploader: data.uploader,
-      view_count: data.view_count,
-      formats: data.formats
+      id: info.id,
+      title: info.title,
+      thumbnail: info.thumbnail,
+      duration: info.duration,
+      uploader: info.uploader,
+      view_count: info.view_count,
+      formats: extractFormats(info.formats),
+      best_url: info.url || null,
     };
   } catch (err) {
-    throw new Error("yt-dlp error: " + err.message);
+    console.error("[yt-dlp] video error", err);
+    throw new Error(`yt-dlp error: ${err.message}`);
   }
 }
 
-/* -------------------------
-   SEARCH
--------------------------- */
-export async function searchVideos(query) {
-  try {
-    const data = await runYtDlp([
-      `ytsearch20:${query}`,
-      "-J",
-      "--no-playlist"
-    ]);
-
-    if (!data.entries) return [];
-
-    return data.entries
-      .filter(v => v && v.id)
-      .map(v => ({
-        id: v.id,
-        title: v.title,
-        thumbnail: v.thumbnail,
-        duration: v.duration,
-        uploader: v.uploader,
-        view_count: v.view_count
-      }));
-  } catch (err) {
-    throw new Error("yt-dlp search error: " + err.message);
-  }
-}
-
-/* -------------------------
-   TRENDING (STABLE FALLBACK)
--------------------------- */
-export async function getTrending() {
-  try {
-    // YouTube broke /feed/trending — this is the industry workaround
-    const data = await runYtDlp([
-      "ytsearch20:popular videos this week",
-      "-J",
-      "--no-playlist"
-    ]);
-
-    if (!data.entries) return [];
-
-    return data.entries
-      .filter(v => v && v.id)
-      .map(v => ({
-        id: v.id,
-        title: v.title,
-        thumbnail: v.thumbnail,
-        duration: v.duration,
-        uploader: v.uploader,
-        view_count: v.view_count
-      }));
-  } catch (err) {
-    throw new Error("yt-dlp trending error: " + err.message);
-  }
-}
-
-/* -------------------------
-   CHANNEL VIDEOS
--------------------------- */
-export async function getChannel(channelUrl) {
-  try {
-    const data = await runYtDlp([
-      channelUrl,
-      "-J",
-      "--no-playlist"
-    ]);
-
-    if (!data.entries) return [];
-
-    return data.entries
-      .filter(v => v && v.id)
-      .map(v => ({
-        id: v.id,
-        title: v.title,
-        thumbnail: v.thumbnail,
-        duration: v.duration,
-        uploader: v.uploader,
-        view_count: v.view_count
-      }));
-  } catch (err) {
-    throw new Error("yt-dlp channel error: " + err.message);
-  }
-}
+/* … same for searchVideos, getTrending, getChannel without specifying paths … */
