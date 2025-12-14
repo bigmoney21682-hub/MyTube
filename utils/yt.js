@@ -1,5 +1,4 @@
 import { spawn } from "child_process";
-import path from "path";
 
 const YTDLP =
   process.env.YTDLP_PATH ||
@@ -25,7 +24,7 @@ function runYtDlp(args) {
       }
       try {
         resolve(JSON.parse(stdout));
-      } catch (e) {
+      } catch {
         reject(new Error("Invalid JSON from yt-dlp"));
       }
     });
@@ -60,28 +59,24 @@ export async function searchVideos(query) {
     `ytsearch20:${query}`
   ]);
 
-  return (
-    data.entries
-      ?.map(normalizeVideo)
-      .filter(Boolean) || []
-  );
+  return data.entries
+    ?.map(normalizeVideo)
+    .filter(Boolean) || [];
 }
 
 /**
- * TRENDING (fallback-based)
+ * TRENDING  ✅ (NAME MATCHES ROUTE)
  */
-export async function getTrendingVideos() {
+export async function getTrending() {
   const data = await runYtDlp([
     "-J",
     "--flat-playlist",
     "ytsearch20:trending videos"
   ]);
 
-  return (
-    data.entries
-      ?.map(normalizeVideo)
-      .filter(Boolean) || []
-  );
+  return data.entries
+    ?.map(normalizeVideo)
+    .filter(Boolean) || [];
 }
 
 /**
@@ -102,4 +97,19 @@ export async function getVideoInfo(id) {
     view_count: data.view_count,
     formats: data.formats
   };
+}
+
+/**
+ * CHANNEL
+ */
+export async function getChannel(channelId) {
+  const data = await runYtDlp([
+    "-J",
+    "--flat-playlist",
+    `https://www.youtube.com/channel/${channelId}`
+  ]);
+
+  return data.entries
+    ?.map(normalizeVideo)
+    .filter(Boolean) || [];
 }
