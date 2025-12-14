@@ -1,9 +1,16 @@
 import ytdl from "@distube/yt-dlp-exec";
 
+/**
+ * Explicit yt-dlp binary path (Render-safe)
+ */
 const YTDLP_PATH = process.env.YTDLP_PATH || "yt-dlp";
 
+/**
+ * Extract and normalize formats
+ */
 function extractFormats(formats) {
   if (!Array.isArray(formats)) return [];
+
   return formats
     .filter(f => f.url && f.protocol?.startsWith("http"))
     .map(f => ({
@@ -19,8 +26,12 @@ function extractFormats(formats) {
     .sort((a, b) => (b.height || 0) - (a.height || 0));
 }
 
+/**
+ * Fetch full video metadata + formats
+ */
 export async function getVideoInfo(videoId) {
   const url = `https://www.youtube.com/watch?v=${videoId}`;
+
   try {
     const info = await ytdl(url, {
       dumpSingleJson: true,
@@ -46,8 +57,12 @@ export async function getVideoInfo(videoId) {
   }
 }
 
+/**
+ * Search YouTube videos
+ */
 export async function searchVideos(query, limit = 10) {
   const url = `ytsearch${limit}:${query}`;
+
   try {
     const info = await ytdl(url, {
       dumpSingleJson: true,
@@ -73,8 +88,12 @@ export async function searchVideos(query, limit = 10) {
   }
 }
 
+/**
+ * Fetch trending videos
+ */
 export async function getTrending(limit = 10) {
   const url = `https://www.youtube.com/feed/trending`;
+
   try {
     const info = await ytdl(url, {
       dumpSingleJson: true,
@@ -100,8 +119,12 @@ export async function getTrending(limit = 10) {
   }
 }
 
+/**
+ * Fetch videos from a specific channel
+ */
 export async function getChannel(channelId, limit = 10) {
   const url = `https://www.youtube.com/channel/${channelId}`;
+
   try {
     const info = await ytdl(url, {
       dumpSingleJson: true,
@@ -116,7 +139,7 @@ export async function getChannel(channelId, limit = 10) {
       title: video.title || "Unknown",
       thumbnail: video.thumbnail || null,
       duration: video.duration || 0,
-      uploader: info.uploader || "Unknown",
+      uploader: info.uploader || "Unknown", // Fallback added
       view_count: video.view_count || 0,
       formats: extractFormats(video.formats),
       best_url: video.url || null,
@@ -126,3 +149,6 @@ export async function getChannel(channelId, limit = 10) {
     throw new Error(`yt-dlp channel error: ${err.message}`);
   }
 }
+
+// Ensure all functions are exported
+export { getVideoInfo, searchVideos, getTrending, getChannel };
