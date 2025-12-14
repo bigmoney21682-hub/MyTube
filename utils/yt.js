@@ -64,7 +64,6 @@ export async function getVideoInfo(videoId) {
 
 /**
  * Search videos on YouTube
- * Uses yt-dlp's 'ytsearch' feature to fetch multiple results
  */
 export async function searchVideos(query, limit = 10) {
   if (!query) return [];
@@ -80,7 +79,6 @@ export async function searchVideos(query, limit = 10) {
       ytdlpPath: YTDLP_PATH,
     });
 
-    // yt-dlp returns entries array for ytsearch
     return (info.entries || []).map(video => ({
       id: video.id,
       title: video.title || "Unknown",
@@ -94,5 +92,69 @@ export async function searchVideos(query, limit = 10) {
   } catch (err) {
     console.error(`[yt-dlp] Search failed for "${query}":`, err.message);
     throw new Error(`yt-dlp search error: ${err.message}`);
+  }
+}
+
+/**
+ * Fetch trending videos
+ */
+export async function getTrending(limit = 10) {
+  const url = `https://www.youtube.com/feed/trending`;
+
+  try {
+    const info = await ytdl(url, {
+      dumpSingleJson: true,
+      skipDownload: true,
+      noWarnings: true,
+      socketTimeout: 30000,
+      ytdlpPath: YTDLP_PATH,
+    });
+
+    return (info.entries || []).slice(0, limit).map(video => ({
+      id: video.id,
+      title: video.title || "Unknown",
+      thumbnail: video.thumbnail || null,
+      duration: video.duration || 0,
+      uploader: video.uploader || "Unknown",
+      view_count: video.view_count || 0,
+      formats: extractFormats(video.formats),
+      best_url: video.url || null,
+    }));
+  } catch (err) {
+    console.error(`[yt-dlp] Trending fetch failed:`, err.message);
+    throw new Error(`yt-dlp trending error: ${err.message}`);
+  }
+}
+
+/**
+ * Fetch all videos from a channel
+ */
+export async function getChannelVideos(channelId, limit = 10) {
+  if (!channelId) return [];
+
+  const url = `https://www.youtube.com/channel/${channelId}`;
+
+  try {
+    const info = await ytdl(url, {
+      dumpSingleJson: true,
+      skipDownload: true,
+      noWarnings: true,
+      socketTimeout: 30000,
+      ytdlpPath: YTDLP_PATH,
+    });
+
+    return (info.entries || []).slice(0, limit).map(video => ({
+      id: video.id,
+      title: video.title || "Unknown",
+      thumbnail: video.thumbnail || null,
+      duration: video.duration || 0,
+      uploader: info.uploader || "Unknown",
+      view_count: video.view_count || 0,
+      formats: extractFormats(video.formats),
+      best_url: video.url || null,
+    }));
+  } catch (err) {
+    console.error(`[yt-dlp] Channel fetch failed for "${channelId}":`, err.message);
+    throw new Error(`yt-dlp channel error: ${err.message}`);
   }
 }
