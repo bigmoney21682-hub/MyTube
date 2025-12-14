@@ -2,18 +2,21 @@ services:
   - type: web
     name: mytube-backend
     env: node
-    repo: https://github.com/your-repo/mytube  # Update to your repo
-    branch: main  # Or your branch
-    buildCommand: npm install
-    startCommand: npm start
+    plan: free
+    branch: main
+
+    buildCommand: |
+      npm install
+      apt-get update
+      apt-get install -y yt-dlp
+
+    startCommand: node server.js
+
     envVars:
       - key: NODE_ENV
         value: production
 
   - type: redis
     name: mytube-cache
-    ipAllowList: []  # Allow all (or restrict)
     plan: free
-    maxmemoryPolicy: allkeys-lru  # Optional eviction policy
-
-# Auto-links REDIS_URL to web service via dashboard or manual env var
+    maxmemoryPolicy: allkeys-lru
