@@ -129,7 +129,7 @@ export async function getTrending(limit = 10) {
 /**
  * Fetch all videos from a channel
  */
-export async function getChannelVideos(channelId, limit = 10) {
+export async function getChannel(channelId, limit = 10) {
   if (!channelId) return [];
 
   const url = `https://www.youtube.com/channel/${channelId}`;
