@@ -149,6 +149,3 @@ export async function getChannel(channelId, limit = 10) {
     throw new Error(`yt-dlp channel error: ${err.message}`);
   }
 }
-
-// Ensure all functions are exported
-export { getVideoInfo, searchVideos, getTrending, getChannel };
