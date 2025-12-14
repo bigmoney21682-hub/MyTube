@@ -1,4 +1,4 @@
-import ytdl from "@distube/yt-dlp-exec";
+import ytdl from "youtube-dl-exec";
 
 /**
  * Explicit yt-dlp binary path (Render-safe)
@@ -139,7 +139,7 @@ export async function getChannel(channelId, limit = 10) {
       title: video.title || "Unknown",
       thumbnail: video.thumbnail || null,
       duration: video.duration || 0,
-      uploader: info.uploader || "Unknown", // Fallback added
+      uploader: info.uploader || "Unknown",
       view_count: video.view_count || 0,
       formats: extractFormats(video.formats),
       best_url: video.url || null,
