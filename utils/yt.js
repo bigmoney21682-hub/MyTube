@@ -1,8 +1,5 @@
 import ytdl from "youtube-dl-exec";
 
-/* Render-provided binary */
-const YTDLP_PATH = process.env.YTDLP_PATH || "yt-dlp";
-
 /* -------------------- Helpers -------------------- */
 function extractFormats(formats) {
   if (!Array.isArray(formats)) return [];
@@ -32,7 +29,6 @@ export async function getVideoInfo(videoId) {
       skipDownload: true,
       noWarnings: true,
       socketTimeout: 30000,
-      binaryPath: YTDLP_PATH,
     });
 
     return {
@@ -46,7 +42,7 @@ export async function getVideoInfo(videoId) {
       best_url: info.url || null,
     };
   } catch (err) {
-    console.error(`[yt-dlp] video failed (${videoId})`, err);
+    console.error("[yt-dlp] video error", err);
     throw new Error(`yt-dlp error: ${err.message}`);
   }
 }
@@ -61,7 +57,6 @@ export async function searchVideos(query, limit = 10) {
       skipDownload: true,
       noWarnings: true,
       socketTimeout: 30000,
-      binaryPath: YTDLP_PATH,
     });
 
     return (info.entries || []).map(video => ({
@@ -75,7 +70,7 @@ export async function searchVideos(query, limit = 10) {
       best_url: video.url || null,
     }));
   } catch (err) {
-    console.error(`[yt-dlp] search failed (${query})`, err);
+    console.error("[yt-dlp] search error", err);
     throw new Error(`yt-dlp search error: ${err.message}`);
   }
 }
@@ -88,7 +83,6 @@ export async function getTrending(limit = 20) {
       skipDownload: true,
       noWarnings: true,
       socketTimeout: 30000,
-      binaryPath: YTDLP_PATH,
     });
 
     return (info.entries || [])
@@ -104,7 +98,7 @@ export async function getTrending(limit = 20) {
         best_url: video.url || null,
       }));
   } catch (err) {
-    console.error("[yt-dlp] trending failed", err);
+    console.error("[yt-dlp] trending error", err);
     throw new Error(`yt-dlp trending error: ${err.message}`);
   }
 }
@@ -119,7 +113,6 @@ export async function getChannel(channelId, limit = 20) {
       skipDownload: true,
       noWarnings: true,
       socketTimeout: 30000,
-      binaryPath: YTDLP_PATH,
     });
 
     return (info.entries || [])
@@ -135,7 +128,7 @@ export async function getChannel(channelId, limit = 20) {
         best_url: video.url || null,
       }));
   } catch (err) {
-    console.error(`[yt-dlp] channel failed (${channelId})`, err);
+    console.error("[yt-dlp] channel error", err);
     throw new Error(`yt-dlp channel error: ${err.message}`);
   }
 }
