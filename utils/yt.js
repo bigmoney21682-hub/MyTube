@@ -61,3 +61,38 @@ export async function getVideoInfo(videoId) {
     throw new Error(`yt-dlp error: ${err.message}`);
   }
 }
+
+/**
+ * Search videos on YouTube
+ * Uses yt-dlp's 'ytsearch' feature to fetch multiple results
+ */
+export async function searchVideos(query, limit = 10) {
+  if (!query) return [];
+
+  const url = `ytsearch${limit}:${query}`;
+
+  try {
+    const info = await ytdl(url, {
+      dumpSingleJson: true,
+      skipDownload: true,
+      noWarnings: true,
+      socketTimeout: 30000,
+      ytdlpPath: YTDLP_PATH,
+    });
+
+    // yt-dlp returns entries array for ytsearch
+    return (info.entries || []).map(video => ({
+      id: video.id,
+      title: video.title || "Unknown",
+      thumbnail: video.thumbnail || null,
+      duration: video.duration || 0,
+      uploader: video.uploader || "Unknown",
+      view_count: video.view_count || 0,
+      formats: extractFormats(video.formats),
+      best_url: video.url || null,
+    }));
+  } catch (err) {
+    console.error(`[yt-dlp] Search failed for "${query}":`, err.message);
+    throw new Error(`yt-dlp search error: ${err.message}`);
+  }
+}
