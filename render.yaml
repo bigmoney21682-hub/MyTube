@@ -5,13 +5,22 @@ services:
     plan: free
     branch: main
 
-    buildCommand: npm install && mkdir -p bin && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o bin/yt-dlp && chmod +x bin/yt-dlp
+    buildCommand: >
+      npm install &&
+      mkdir -p bin &&
+      curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o bin/yt-dlp &&
+      chmod +x bin/yt-dlp
+
     startCommand: node server.js
 
     envVars:
       - key: NODE_ENV
         value: production
-      - key: YTDLP_PATH
+
+      # ✅ THIS is the important one
+      - key: YOUTUBE_DL_PATH
         value: /opt/render/project/src/bin/yt-dlp
+
+      # ✅ Ensure the binary is callable by name
       - key: PATH
         value: /opt/render/project/src/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
