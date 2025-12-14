@@ -1,23 +1,11 @@
-import ytdl from "youtube-dl-exec";
+import ytdl from "@distube/yt-dlp-exec";
 
-/**
- * Explicit yt-dlp binary path (Render-safe)
- */
 const YTDLP_PATH = process.env.YTDLP_PATH || "yt-dlp";
 
-/**
- * Extract and normalize formats
- */
 function extractFormats(formats) {
   if (!Array.isArray(formats)) return [];
-
   return formats
-    .filter(f =>
-      f.url &&
-      typeof f.url === "string" &&
-      f.protocol &&
-      f.protocol.startsWith("http")
-    )
+    .filter(f => f.url && f.protocol?.startsWith("http"))
     .map(f => ({
       format_id: f.format_id,
       url: f.url,
@@ -31,19 +19,15 @@ function extractFormats(formats) {
     .sort((a, b) => (b.height || 0) - (a.height || 0));
 }
 
-/**
- * Fetch full video metadata + formats
- */
 export async function getVideoInfo(videoId) {
   const url = `https://www.youtube.com/watch?v=${videoId}`;
-
   try {
     const info = await ytdl(url, {
       dumpSingleJson: true,
       skipDownload: true,
       noWarnings: true,
       socketTimeout: 30000,
-      ytdlpPath: YTDLP_PATH,
+      execPath: YTDLP_PATH
     });
 
     return {
@@ -62,21 +46,15 @@ export async function getVideoInfo(videoId) {
   }
 }
 
-/**
- * Search videos on YouTube
- */
 export async function searchVideos(query, limit = 10) {
-  if (!query) return [];
-
   const url = `ytsearch${limit}:${query}`;
-
   try {
     const info = await ytdl(url, {
       dumpSingleJson: true,
       skipDownload: true,
       noWarnings: true,
       socketTimeout: 30000,
-      ytdlpPath: YTDLP_PATH,
+      execPath: YTDLP_PATH
     });
 
     return (info.entries || []).map(video => ({
@@ -95,19 +73,15 @@ export async function searchVideos(query, limit = 10) {
   }
 }
 
-/**
- * Fetch trending videos
- */
 export async function getTrending(limit = 10) {
   const url = `https://www.youtube.com/feed/trending`;
-
   try {
     const info = await ytdl(url, {
       dumpSingleJson: true,
       skipDownload: true,
       noWarnings: true,
       socketTimeout: 30000,
-      ytdlpPath: YTDLP_PATH,
+      execPath: YTDLP_PATH
     });
 
     return (info.entries || []).slice(0, limit).map(video => ({
@@ -126,21 +100,15 @@ export async function getTrending(limit = 10) {
   }
 }
 
-/**
- * Fetch all videos from a channel
- */
 export async function getChannel(channelId, limit = 10) {
-  if (!channelId) return [];
-
   const url = `https://www.youtube.com/channel/${channelId}`;
-
   try {
     const info = await ytdl(url, {
       dumpSingleJson: true,
       skipDownload: true,
       noWarnings: true,
       socketTimeout: 30000,
-      ytdlpPath: YTDLP_PATH,
+      execPath: YTDLP_PATH
     });
 
     return (info.entries || []).slice(0, limit).map(video => ({
