@@ -5,16 +5,13 @@ services:
     plan: free
     branch: main
 
-    buildCommand: |
-      npm install
-      mkdir -p bin
-      curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o bin/yt-dlp
-      chmod +x bin/yt-dlp
-
+    buildCommand: npm install && mkdir -p bin && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o bin/yt-dlp && chmod +x bin/yt-dlp
     startCommand: node server.js
 
     envVars:
       - key: NODE_ENV
         value: production
+      - key: YTDLP_PATH
+        value: /opt/render/project/src/bin/yt-dlp
       - key: PATH
         value: /opt/render/project/src/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
