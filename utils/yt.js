@@ -1,47 +1,63 @@
-import ytdl from 'youtube-dl-exec';
+import ytdl from "youtube-dl-exec";
 
+/**
+ * Explicit yt-dlp binary path (Render-safe)
+ */
+const YTDLP_PATH = process.env.YTDLP_PATH || "yt-dlp";
+
+/**
+ * Extract and normalize formats
+ */
 function extractFormats(formats) {
-  if (!formats || !Array.isArray(formats)) return [];
+  if (!Array.isArray(formats)) return [];
+
   return formats
-    .filter(f => f.url && f.protocol?.startsWith('http'))
+    .filter(f =>
+      f.url &&
+      typeof f.url === "string" &&
+      f.protocol &&
+      f.protocol.startsWith("http")
+    )
     .map(f => ({
       format_id: f.format_id,
       url: f.url,
-      ext: f.ext,
+      ext: f.ext || null,
       height: f.height || null,
       fps: f.fps || null,
       filesize: f.filesize || null,
-      acodec: f.acodec || 'none',
-      vcodec: f.vcodec || 'none',
+      acodec: f.acodec || "none",
+      vcodec: f.vcodec || "none",
     }))
     .sort((a, b) => (b.height || 0) - (a.height || 0));
 }
 
+/**
+ * Fetch full video metadata + formats
+ */
 export async function getVideoInfo(videoId) {
   const url = `https://www.youtube.com/watch?v=${videoId}`;
-  
+
   try {
     const info = await ytdl(url, {
       dumpSingleJson: true,
-      noWarnings: true,
       skipDownload: true,
-      timeout: 30000, // Add timeout
+      noWarnings: true,
+      socketTimeout: 30000,
+      ytdlpPath: YTDLP_PATH,
     });
 
     return {
       id: info.id,
-      title: info.title || 'Unknown',
-      thumbnail: info.thumbnail,
-      duration: info.duration,
-      uploader: info.uploader || 'Unknown',
+      title: info.title || "Unknown",
+      thumbnail: info.thumbnail || null,
+      duration: info.duration || 0,
+      uploader: info.uploader || "Unknown",
       view_count: info.view_count || 0,
-      formats: extractFormats(info.formats), // Keep your format logic
+      formats: extractFormats(info.formats),
       best_url: info.url || null,
     };
-  } catch (error) {
-    console.error(`ytdl failed for ${videoId}:`, error.message);
-    throw new Error(`Video fetch failed: ${error.message}`);
+  } catch (err) {
+    console.error(`[yt-dlp] Failed for ${videoId}:`, err.message);
+    throw new Error(`yt-dlp error: ${err.message}`);
   }
 }
-
-// Keep search/trending/channel unchanged
