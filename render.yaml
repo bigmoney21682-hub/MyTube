@@ -7,16 +7,14 @@ services:
 
     buildCommand: |
       npm install
-      apt-get update
-      apt-get install -y yt-dlp
+      mkdir -p bin
+      curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o bin/yt-dlp
+      chmod +x bin/yt-dlp
 
     startCommand: node server.js
 
     envVars:
       - key: NODE_ENV
         value: production
-
-  - type: redis
-    name: mytube-cache
-    plan: free
-    maxmemoryPolicy: allkeys-lru
+      - key: PATH
+        value: /opt/render/project/src/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
