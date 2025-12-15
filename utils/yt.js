@@ -70,9 +70,7 @@ export async function searchVideos(query) {
 }
 
 /* ===================== TRENDING ===================== */
-// Note: The old playlist ID "PLBCF2DAC6FFB574DE" appears outdated (empty/slow in 2025).
-// Switching to the current global Music Trending playlist for faster, relevant results.
-// If you prefer non-music trending, we can explore alternatives later.
+// Updated to a reliable, active global music trending playlist (loads fast, full of playable videos)
 export async function getTrending() {
   const data = await runYtDlp([
     ...COMMON_ARGS,
@@ -92,8 +90,22 @@ export async function getVideoInfo(id) {
     `https://www.youtube.com/watch?v=${id}`
   ]);
 
-  // Prefer Safari-compatible combined MP4 + H.264 formats (fast direct URLs)
-  const compatibleFormats = Array.isArray(data.formats)
+  // Check for at least one Safari-compatible format (combined MP4 + H.264)
+  const hasCompatibleFormat = Array.isArray(data.formats)
+    ? data.formats.some(f =>
+        f.url &&
+        f.vcodec !== "none" &&
+        f.acodec !== "none" &&
+        f.ext === "mp4" &&
+        f.vcodec && f.vcodec.startsWith("avc1")
+      )
+    : false;
+
+  // Add a flag for the frontend to know if it's playable on Safari
+  const isSafariPlayable = hasCompatibleFormat;
+
+  // Always prefer compatible formats if available
+  const compatibleFormats = hasCompatibleFormat
     ? data.formats.filter(f =>
         f.url &&
         f.vcodec !== "none" &&
@@ -112,7 +124,8 @@ export async function getVideoInfo(id) {
     duration: data.duration,
     uploader: data.uploader,
     view_count: data.view_count,
-    formats: formatsToUse
+    formats: formatsToUse,
+    isSafariPlayable  // New flag: true if has direct H.264/MP4 stream
   };
 }
 
