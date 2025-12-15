@@ -50,29 +50,38 @@ function normalizeVideo(v) {
   };
 }
 
-/* ===================== SAFARI COMPATIBILITY CHECK ===================== */
-// Returns true if the video has at least one combined MP4 + H.264 (avc1) format
-async function hasSafariCompatibleFormat(id) {
-  try {
-    const data = await runYtDlp([
-      "-J",
-      "--cookies", COOKIES_PATH,
-      "--js-runtimes", "node",
-      `https://www.youtube.com/watch?v=${id}`
-    ]);
+/* ===================== VIDEO DETAILS ===================== */
+export async function getVideoInfo(id) {
+  const data = await runYtDlp([
+    "-J",
+    "--cookies", COOKIES_PATH,
+    "--js-runtimes", "node",
+    `https://www.youtube.com/watch?v=${id}`
+  ]);
 
-    if (!Array.isArray(data.formats)) return false;
+  // Prefer Safari-compatible combined MP4 + H.264 formats
+  // Fall back to any combined formats if none available (rare, but prevents null)
+  const compatibleFormats = Array.isArray(data.formats)
+    ? data.formats.filter(f =>
+        f.url &&
+        f.vcodec !== "none" &&
+        f.acodec !== "none" &&
+        f.ext === "mp4" &&
+        f.vcodec && f.vcodec.startsWith("avc1")
+      )
+    : [];
 
-    return data.formats.some(f =>
-      f.url &&
-      f.vcodec !== "none" &&
-      f.acodec !== "none" &&          // combined stream (video + audio)
-      f.ext === "mp4" &&
-      f.vcodec && f.vcodec.startsWith("avc1")
-    );
-  } catch {
-    return false;
-  }
+  const formatsToUse = compatibleFormats.length > 0 ? compatibleFormats : (data.formats || []);
+
+  return {
+    id: data.id,
+    title: data.title,
+    thumbnail: data.thumbnail,
+    duration: data.duration,
+    uploader: data.uploader,
+    view_count: data.view_count,
+    formats: formatsToUse  // Safari-safe if available, otherwise whatever exists
+  };
 }
 
 /* ===================== SEARCH ===================== */
@@ -85,16 +94,9 @@ export async function searchVideos(query) {
     `ytsearch20:${query}`
   ]);
 
-  const entries = Array.isArray(data.entries) ? data.entries : [];
-
-  const filtered = [];
-  for (const entry of entries) {
-    if (await hasSafariCompatibleFormat(entry.id)) {
-      filtered.push(normalizeVideo(entry));
-    }
-  }
-
-  return filtered;
+  return Array.isArray(data.entries)
+    ? data.entries.map(normalizeVideo).filter(Boolean)
+    : [];
 }
 
 /* ===================== TRENDING ===================== */
@@ -109,56 +111,9 @@ export async function getTrending() {
     `https://www.youtube.com/playlist?list=${playlistId}`
   ]);
 
-  const entries = Array.isArray(data.entries) ? data.entries : [];
-
-  const filtered = [];
-  for (const entry of entries) {
-    if (await hasSafariCompatibleFormat(entry.id)) {
-      filtered.push(normalizeVideo(entry));
-    }
-  }
-
-  return filtered;
-}
-
-/* ===================== VIDEO DETAILS ===================== */
-export async function getVideoInfo(id) {
-  const data = await runYtDlp([
-    "-J",
-    "--cookies", COOKIES_PATH,
-    "--js-runtimes", "node",
-    `https://www.youtube.com/watch?v=${id}`
-  ]);
-
-  // Filter to Safari-compatible formats (MP4 + H.264 + audio)
-  const compatibleFormats = Array.isArray(data.formats)
-    ? data.formats.filter(f =>
-        f.url &&
-        f.vcodec !== "none" &&
-        f.acodec !== "none" &&
-        f.ext === "mp4" &&
-        f.vcodec && f.vcodec.startsWith("avc1")
-      )
+  return Array.isArray(data.entries)
+    ? data.entries.map(normalizeVideo).filter(Boolean)
     : [];
-
-  // If no compatible format, return null so frontend can skip
-  if (compatibleFormats.length === 0) {
-    return null;
-  }
-
-  // You can still include all formats if you want fallback options for other browsers
-  const allFormats = data.formats || [];
-
-  return {
-    id: data.id,
-    title: data.title,
-    thumbnail: data.thumbnail,
-    duration: data.duration,
-    uploader: data.uploader,
-    view_count: data.view_count,
-    formats: compatibleFormats,        // only Safari-safe ones (recommended)
-    // allFormats: allFormats,         // uncomment if you want all for non-Safari
-  };
 }
 
 /* ===================== RELATED ===================== */
@@ -171,16 +126,9 @@ export async function getRelated(id) {
     `https://www.youtube.com/watch?v=${id}&list=RD${id}`
   ]);
 
-  const entries = Array.isArray(data.entries) ? data.entries : [];
-
-  const filtered = [];
-  for (const entry of entries) {
-    if (await hasSafariCompatibleFormat(entry.id)) {
-      filtered.push(normalizeVideo(entry));
-    }
-  }
-
-  return filtered;
+  return Array.isArray(data.entries)
+    ? data.entries.map(normalizeVideo).filter(Boolean)
+    : [];
 }
 
 /* ===================== CHANNEL ===================== */
@@ -193,14 +141,7 @@ export async function getChannel(channelId) {
     `https://www.youtube.com/channel/${channelId}`
   ]);
 
-  const entries = Array.isArray(data.entries) ? data.entries : [];
-
-  const filtered = [];
-  for (const entry of entries) {
-    if (await hasSafariCompatibleFormat(entry.id)) {
-      filtered.push(normalizeVideo(entry));
-    }
-  }
-
-  return filtered;
+  return Array.isArray(data.entries)
+    ? data.entries.map(normalizeVideo).filter(Boolean)
+    : [];
 }
