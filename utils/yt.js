@@ -7,24 +7,8 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Cookies file (Netscape format)
 const COOKIES_PATH = path.join(__dirname, "cookies.txt");
-
-// yt-dlp binary (Render)
 const YTDLP = process.env.YTDLP_PATH || "./bin/yt-dlp";
-
-/* ===================== iOS SAFE FILTER ===================== */
-/*
-  This filter removes:
-  - DASH-only videos
-  - DRM
-  - livestreams
-  - formats iOS Safari cannot play
-*/
-const IOS_FILTER =
-  "!is_live & " +
-  "vcodec!=none & " +
-  "(ext=mp4 | ext=webm)";
 
 /* ===================== CORE RUNNER ===================== */
 function runYtDlp(args) {
@@ -71,7 +55,6 @@ export async function searchVideos(query) {
   const data = await runYtDlp([
     "-J",
     "--flat-playlist",
-    "--match-filter", IOS_FILTER,
     "--cookies", COOKIES_PATH,
     "--js-runtimes", "node",
     `ytsearch20:${query}`
@@ -84,12 +67,11 @@ export async function searchVideos(query) {
 
 /* ===================== TRENDING ===================== */
 export async function getTrending() {
-  const playlistId = "PLBCF2DAC6FFB574DE"; // stable trending
+  const playlistId = "PLBCF2DAC6FFB574DE";
 
   const data = await runYtDlp([
     "-J",
     "--flat-playlist",
-    "--match-filter", IOS_FILTER,
     "--cookies", COOKIES_PATH,
     "--js-runtimes", "node",
     `https://www.youtube.com/playlist?list=${playlistId}`
@@ -100,7 +82,7 @@ export async function getTrending() {
     : [];
 }
 
-/* ===================== VIDEO DETAILS ===================== */
+/* ===================== VIDEO DETAILS (FILTER HERE ONLY) ===================== */
 export async function getVideoInfo(id) {
   const data = await runYtDlp([
     "-J",
@@ -109,6 +91,15 @@ export async function getVideoInfo(id) {
     `https://www.youtube.com/watch?v=${id}`
   ]);
 
+  const formats = Array.isArray(data.formats)
+    ? data.formats.filter(f =>
+        f.url &&
+        f.vcodec !== "none" &&
+        (f.ext === "mp4" || f.ext === "webm") &&
+        !f.is_dash
+      )
+    : [];
+
   return {
     id: data.id,
     title: data.title,
@@ -116,23 +107,15 @@ export async function getVideoInfo(id) {
     duration: data.duration,
     uploader: data.uploader,
     view_count: data.view_count,
-    formats: Array.isArray(data.formats)
-      ? data.formats.filter(f =>
-          f.url &&
-          f.vcodec !== "none" &&
-          (f.ext === "mp4" || f.ext === "webm") &&
-          !f.is_dash
-        )
-      : []
+    formats
   };
 }
 
-/* ===================== RELATED (iOS SAFE) ===================== */
+/* ===================== RELATED ===================== */
 export async function getRelated(id) {
   const data = await runYtDlp([
     "-J",
     "--flat-playlist",
-    "--match-filter", IOS_FILTER,
     "--cookies", COOKIES_PATH,
     "--js-runtimes", "node",
     `https://www.youtube.com/watch?v=${id}&list=RD${id}`
@@ -143,12 +126,11 @@ export async function getRelated(id) {
     : [];
 }
 
-/* ===================== CHANNEL (FIXED EXPORT) ===================== */
+/* ===================== CHANNEL ===================== */
 export async function getChannel(channelId) {
   const data = await runYtDlp([
     "-J",
     "--flat-playlist",
-    "--match-filter", IOS_FILTER,
     "--cookies", COOKIES_PATH,
     "--js-runtimes", "node",
     `https://www.youtube.com/channel/${channelId}`
