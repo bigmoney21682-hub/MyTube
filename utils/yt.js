@@ -3,14 +3,11 @@ import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Resolve __dirname
+/* ===================== PATHS ===================== */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Cookies file (must be Netscape format)
 const COOKIES_PATH = path.join(__dirname, "cookies.txt");
-
-// yt-dlp binary (Render)
 const YTDLP = process.env.YTDLP_PATH || "./bin/yt-dlp";
 
 /* ===================== CORE RUNNER ===================== */
@@ -37,6 +34,16 @@ function runYtDlp(args) {
   });
 }
 
+/* ===================== PLAYABLE CHECK ===================== */
+function hasPlayableFormat(formats = []) {
+  return formats.some(
+    f =>
+      f.ext === "mp4" &&
+      f.vcodec !== "none" &&
+      f.acodec !== "none"
+  );
+}
+
 /* ===================== NORMALIZER ===================== */
 function normalizeVideo(v) {
   if (!v || !v.id) return null;
@@ -45,7 +52,8 @@ function normalizeVideo(v) {
     id: v.id,
     title: v.title,
     thumbnail:
-      v.thumbnail || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
+      v.thumbnail ||
+      `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
     duration: v.duration,
     uploader: v.uploader,
     view_count: v.view_count
@@ -93,6 +101,11 @@ export async function getVideoInfo(id) {
     `https://www.youtube.com/watch?v=${id}`
   ]);
 
+  // HARD FILTER — ONLY HERE
+  if (!hasPlayableFormat(data.formats)) {
+    throw new Error("No playable formats (iOS incompatible)");
+  }
+
   return {
     id: data.id,
     title: data.title,
@@ -104,7 +117,7 @@ export async function getVideoInfo(id) {
   };
 }
 
-/* ===================== RELATED (FIXED) ===================== */
+/* ===================== RELATED ===================== */
 export async function getRelated(id) {
   const data = await runYtDlp([
     "-J",
