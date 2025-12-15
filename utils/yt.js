@@ -1,20 +1,25 @@
+// Filename: utils/yt.js
 import { spawn } from "child_process";
 import path from "path";
+import { fileURLToPath } from "url";
 
-// === CONFIG ===
+// Resolve __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Path to cookies file
+const COOKIES_PATH = path.join(__dirname, "cookies.txt");
+
+// Path to yt-dlp binary (adjust if using Render bin folder)
 const YTDLP =
   process.env.YTDLP_PATH ||
-  process.env.YOUTUBE_DL_PATH ||
-  path.join(process.cwd(), "bin", "yt-dlp"); // Render-safe path to yt-dlp
+  "./bin/yt-dlp" ||
+  "yt-dlp";
 
-const COOKIE_FILE = path.join(process.cwd(), "utils", "cookies.txt"); // make sure cookies.txt exists
-
-// === RUN YT-DLP WITH COOKIES + JS RUNTIME ===
+/**
+ * Run yt-dlp and return parsed JSON
+ */
 function runYtDlp(args) {
-  // Ensure cookies and JS runtime
-  args.unshift("--cookies", COOKIE_FILE);
-  args.unshift("--js-runtimes", "node"); // force Node.js runtime
-
   return new Promise((resolve, reject) => {
     const proc = spawn(YTDLP, args);
 
@@ -37,25 +42,33 @@ function runYtDlp(args) {
   });
 }
 
-// === NORMALIZE VIDEO ENTRY ===
+/**
+ * Normalize a yt-dlp video entry
+ */
 function normalizeVideo(v) {
   if (!v || !v.id) return null;
 
   return {
     id: v.id,
     title: v.title,
-    thumbnail: v.thumbnail || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
+    thumbnail:
+      v.thumbnail ||
+      `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
     duration: v.duration,
     uploader: v.uploader,
     view_count: v.view_count
   };
 }
 
-// === SEARCH VIDEOS ===
+/**
+ * SEARCH
+ */
 export async function searchVideos(query) {
   const data = await runYtDlp([
     "-J",
     "--flat-playlist",
+    "--cookies", COOKIES_PATH,
+    "--js-runtimes", "node",
     `ytsearch20:${query}`
   ]);
 
@@ -64,13 +77,19 @@ export async function searchVideos(query) {
     : [];
 }
 
-// === TRENDING VIDEOS (STABLE PLAYLIST) ===
+/**
+ * TRENDING ✅
+ * Uses stable YouTube playlist
+ */
 export async function getTrending() {
   try {
     const playlistId = "PLBCF2DAC6FFB574DE"; // YouTube trending playlist
+
     const data = await runYtDlp([
       "-J",
       "--flat-playlist",
+      "--cookies", COOKIES_PATH,
+      "--js-runtimes", "node",
       `https://www.youtube.com/playlist?list=${playlistId}`
     ]);
 
@@ -83,10 +102,14 @@ export async function getTrending() {
   }
 }
 
-// === VIDEO DETAILS ===
+/**
+ * VIDEO DETAILS
+ */
 export async function getVideoInfo(id) {
   const data = await runYtDlp([
     "-J",
+    "--cookies", COOKIES_PATH,
+    "--js-runtimes", "node",
     `https://www.youtube.com/watch?v=${id}`
   ]);
 
@@ -101,11 +124,15 @@ export async function getVideoInfo(id) {
   };
 }
 
-// === CHANNEL VIDEOS ===
+/**
+ * CHANNEL
+ */
 export async function getChannel(channelId) {
   const data = await runYtDlp([
     "-J",
     "--flat-playlist",
+    "--cookies", COOKIES_PATH,
+    "--js-runtimes", "node",
     `https://www.youtube.com/channel/${channelId}`
   ]);
 
@@ -114,19 +141,19 @@ export async function getChannel(channelId) {
     : [];
 }
 
-// === RELATED VIDEOS ===
+/**
+ * RELATED VIDEOS
+ */
 export async function getRelated(id) {
-  try {
-    const data = await runYtDlp([
-      "-J",
-      "--flat-playlist",
-      `https://www.youtube.com/watch?v=${id}&list=RD${id}`
-    ]);
+  const data = await runYtDlp([
+    "-J",
+    "--flat-playlist",
+    "--cookies", COOKIES_PATH,
+    "--js-runtimes", "node",
+    `ytrelated:${id}`
+  ]);
 
-    return Array.isArray(data.entries)
-      ? data.entries.map(normalizeVideo).filter(Boolean)
-      : [];
-  } catch {
-    return [];
-  }
+  return Array.isArray(data.entries)
+    ? data.entries.map(normalizeVideo).filter(Boolean)
+    : [];
 }
