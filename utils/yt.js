@@ -1,16 +1,26 @@
-// Filename: utils/yt.js
+// backend/utils/yt.js
 import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 
-/* ===================== PATHS ===================== */
+/* ========== PATH SETUP ========== */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const COOKIES_PATH = path.join(__dirname, "cookies.txt");
 const YTDLP = process.env.YTDLP_PATH || "./bin/yt-dlp";
 
-/* ===================== CORE RUNNER ===================== */
+/* ========== IOS SAFE FILTER ========== */
+/*
+  - mp4 only
+  - audio + video
+  - not livestream
+  - not zero duration
+*/
+const IOS_FILTER =
+  "ext=mp4 & vcodec!=none & acodec!=none & duration>0 & !is_live";
+
+/* ========== CORE RUNNER ========== */
 function runYtDlp(args) {
   return new Promise((resolve, reject) => {
     const proc = spawn(YTDLP, args);
@@ -34,37 +44,28 @@ function runYtDlp(args) {
   });
 }
 
-/* ===================== PLAYABLE CHECK ===================== */
-function hasPlayableFormat(formats = []) {
-  return formats.some(
-    f =>
-      f.ext === "mp4" &&
-      f.vcodec !== "none" &&
-      f.acodec !== "none"
-  );
-}
-
-/* ===================== NORMALIZER ===================== */
+/* ========== NORMALIZER ========== */
 function normalizeVideo(v) {
   if (!v || !v.id) return null;
 
   return {
     id: v.id,
-    title: v.title,
+    title: v.title || "Untitled",
     thumbnail:
       v.thumbnail ||
       `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
-    duration: v.duration,
-    uploader: v.uploader,
-    view_count: v.view_count
+    duration: v.duration || 0,
+    uploader: v.uploader || "",
+    view_count: v.view_count || 0
   };
 }
 
-/* ===================== SEARCH ===================== */
+/* ========== SEARCH ========== */
 export async function searchVideos(query) {
   const data = await runYtDlp([
     "-J",
     "--flat-playlist",
+    "--match-filter", IOS_FILTER,
     "--cookies", COOKIES_PATH,
     "--js-runtimes", "node",
     `ytsearch20:${query}`
@@ -75,13 +76,14 @@ export async function searchVideos(query) {
     : [];
 }
 
-/* ===================== TRENDING ===================== */
+/* ========== TRENDING ========== */
 export async function getTrending() {
   const playlistId = "PLBCF2DAC6FFB574DE";
 
   const data = await runYtDlp([
     "-J",
     "--flat-playlist",
+    "--match-filter", IOS_FILTER,
     "--cookies", COOKIES_PATH,
     "--js-runtimes", "node",
     `https://www.youtube.com/playlist?list=${playlistId}`
@@ -92,7 +94,7 @@ export async function getTrending() {
     : [];
 }
 
-/* ===================== VIDEO DETAILS ===================== */
+/* ========== VIDEO DETAILS ========== */
 export async function getVideoInfo(id) {
   const data = await runYtDlp([
     "-J",
@@ -101,11 +103,6 @@ export async function getVideoInfo(id) {
     `https://www.youtube.com/watch?v=${id}`
   ]);
 
-  // HARD FILTER — ONLY HERE
-  if (!hasPlayableFormat(data.formats)) {
-    throw new Error("No playable formats (iOS incompatible)");
-  }
-
   return {
     id: data.id,
     title: data.title,
@@ -113,33 +110,19 @@ export async function getVideoInfo(id) {
     duration: data.duration,
     uploader: data.uploader,
     view_count: data.view_count,
-    formats: data.formats
+    formats: data.formats || []
   };
 }
 
-/* ===================== RELATED ===================== */
+/* ========== RELATED ========== */
 export async function getRelated(id) {
   const data = await runYtDlp([
     "-J",
     "--flat-playlist",
+    "--match-filter", IOS_FILTER,
     "--cookies", COOKIES_PATH,
     "--js-runtimes", "node",
     `https://www.youtube.com/watch?v=${id}&list=RD${id}`
-  ]);
-
-  return Array.isArray(data.entries)
-    ? data.entries.map(normalizeVideo).filter(Boolean)
-    : [];
-}
-
-/* ===================== CHANNEL ===================== */
-export async function getChannel(channelId) {
-  const data = await runYtDlp([
-    "-J",
-    "--flat-playlist",
-    "--cookies", COOKIES_PATH,
-    "--js-runtimes", "node",
-    `https://www.youtube.com/channel/${channelId}`
   ]);
 
   return Array.isArray(data.entries)
