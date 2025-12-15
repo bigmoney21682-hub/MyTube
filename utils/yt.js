@@ -2,11 +2,15 @@ import { spawn } from "child_process";
 import path from "path";
 
 const YTDLP = path.join(process.cwd(), "bin/yt-dlp");
+const COOKIES = path.join(process.cwd(), "utils/cookies.txt"); // path to your cookies file
 
 /**
  * Run yt-dlp and return parsed JSON
  */
 function runYtDlp(args) {
+  // Always add cookies if file exists
+  if (COOKIES) args.push("--cookies", COOKIES);
+
   return new Promise((resolve, reject) => {
     const proc = spawn(YTDLP, args);
 
@@ -46,17 +50,21 @@ function normalizeVideo(v) {
  * SEARCH
  */
 export async function searchVideos(query) {
-  const data = await runYtDlp(["-J", "--flat-playlist", `ytsearch20:${query}`]);
-  return Array.isArray(data.entries) ? data.entries.map(normalizeVideo).filter(Boolean) : [];
+  try {
+    const data = await runYtDlp(["-J", "--flat-playlist", `ytsearch20:${query}`]);
+    return Array.isArray(data.entries) ? data.entries.map(normalizeVideo).filter(Boolean) : [];
+  } catch (err) {
+    console.error("Search fetch error:", err.message);
+    return [];
+  }
 }
 
 /**
- * TRENDING ✅
- * Uses a stable YouTube playlist to avoid search/trending errors
+ * TRENDING
  */
 export async function getTrending() {
   try {
-    const playlistId = "PLBCF2DAC6FFB574DE"; // YouTube trending playlist
+    const playlistId = "PLBCF2DAC6FFB574DE"; // stable trending playlist
     const data = await runYtDlp(["-J", "--flat-playlist", `https://www.youtube.com/playlist?list=${playlistId}`]);
     return Array.isArray(data.entries) ? data.entries.map(normalizeVideo).filter(Boolean) : [];
   } catch (err) {
@@ -69,22 +77,41 @@ export async function getTrending() {
  * VIDEO DETAILS
  */
 export async function getVideoInfo(id) {
-  const data = await runYtDlp(["-J", `https://www.youtube.com/watch?v=${id}`]);
-  return {
-    id: data.id,
-    title: data.title,
-    thumbnail: data.thumbnail,
-    duration: data.duration,
-    uploader: data.uploader,
-    view_count: data.view_count,
-    formats: data.formats
-  };
+  try {
+    const data = await runYtDlp(["-J", `https://www.youtube.com/watch?v=${id}`]);
+    return {
+      id: data.id,
+      title: data.title,
+      thumbnail: data.thumbnail,
+      duration: data.duration,
+      uploader: data.uploader,
+      view_count: data.view_count,
+      formats: data.formats
+    };
+  } catch (err) {
+    console.error(`Video fetch error (${id}):`, err.message);
+    // Return placeholder object so frontend map() never crashes
+    return {
+      id,
+      title: "Video unavailable",
+      thumbnail: "https://i.ytimg.com/vi/0/hqdefault.jpg",
+      duration: 0,
+      uploader: "Unknown",
+      view_count: 0,
+      formats: []
+    };
+  }
 }
 
 /**
  * CHANNEL
  */
 export async function getChannel(channelId) {
-  const data = await runYtDlp(["-J", "--flat-playlist", `https://www.youtube.com/channel/${channelId}`]);
-  return Array.isArray(data.entries) ? data.entries.map(normalizeVideo).filter(Boolean) : [];
+  try {
+    const data = await runYtDlp(["-J", "--flat-playlist", `https://www.youtube.com/channel/${channelId}`]);
+    return Array.isArray(data.entries) ? data.entries.map(normalizeVideo).filter(Boolean) : [];
+  } catch (err) {
+    console.error(`Channel fetch error (${channelId}):`, err.message);
+    return [];
+  }
 }
