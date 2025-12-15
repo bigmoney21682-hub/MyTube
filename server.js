@@ -3,21 +3,16 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-import {
-  searchVideos,
-  getTrending,
-  getVideoInfo,
-  getChannel
-} from "./utils/yt.js";
+import { searchVideos, getTrending, getVideoInfo, getChannel } from "./utils/yt.js";
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 // Setup CORS
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "*", // change to your frontend URL in production
+  origin: process.env.FRONTEND_URL || "*",
   methods: ["GET", "POST"]
 }));
 
@@ -69,13 +64,16 @@ app.get("/channel/:id", async (req, res) => {
   }
 });
 
-// Optional: serve frontend in production
+// Serve frontend safely if exists
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-app.use(express.static(path.join(__dirname, "public")));
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
+const frontendPath = path.join(__dirname, "public");
+
+import fs from "fs";
+if (fs.existsSync(frontendPath)) {
+  app.use(express.static(frontendPath));
+  app.get("*", (req, res) => res.sendFile(path.join(frontendPath, "index.html")));
+}
 
 // Start server
 app.listen(PORT, () => {
