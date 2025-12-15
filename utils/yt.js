@@ -50,6 +50,31 @@ function normalizeVideo(v) {
   };
 }
 
+/* ===================== SAFARI COMPATIBILITY CHECK ===================== */
+// Returns true if the video has at least one combined MP4 + H.264 (avc1) format
+async function hasSafariCompatibleFormat(id) {
+  try {
+    const data = await runYtDlp([
+      "-J",
+      "--cookies", COOKIES_PATH,
+      "--js-runtimes", "node",
+      `https://www.youtube.com/watch?v=${id}`
+    ]);
+
+    if (!Array.isArray(data.formats)) return false;
+
+    return data.formats.some(f =>
+      f.url &&
+      f.vcodec !== "none" &&
+      f.acodec !== "none" &&          // combined stream (video + audio)
+      f.ext === "mp4" &&
+      f.vcodec && f.vcodec.startsWith("avc1")
+    );
+  } catch {
+    return false;
+  }
+}
+
 /* ===================== SEARCH ===================== */
 export async function searchVideos(query) {
   const data = await runYtDlp([
@@ -60,9 +85,16 @@ export async function searchVideos(query) {
     `ytsearch20:${query}`
   ]);
 
-  return Array.isArray(data.entries)
-    ? data.entries.map(normalizeVideo).filter(Boolean)
-    : [];
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+
+  const filtered = [];
+  for (const entry of entries) {
+    if (await hasSafariCompatibleFormat(entry.id)) {
+      filtered.push(normalizeVideo(entry));
+    }
+  }
+
+  return filtered;
 }
 
 /* ===================== TRENDING ===================== */
@@ -77,12 +109,19 @@ export async function getTrending() {
     `https://www.youtube.com/playlist?list=${playlistId}`
   ]);
 
-  return Array.isArray(data.entries)
-    ? data.entries.map(normalizeVideo).filter(Boolean)
-    : [];
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+
+  const filtered = [];
+  for (const entry of entries) {
+    if (await hasSafariCompatibleFormat(entry.id)) {
+      filtered.push(normalizeVideo(entry));
+    }
+  }
+
+  return filtered;
 }
 
-/* ===================== VIDEO DETAILS (FILTER HERE ONLY) ===================== */
+/* ===================== VIDEO DETAILS ===================== */
 export async function getVideoInfo(id) {
   const data = await runYtDlp([
     "-J",
@@ -91,14 +130,24 @@ export async function getVideoInfo(id) {
     `https://www.youtube.com/watch?v=${id}`
   ]);
 
-  const formats = Array.isArray(data.formats)
+  // Filter to Safari-compatible formats (MP4 + H.264 + audio)
+  const compatibleFormats = Array.isArray(data.formats)
     ? data.formats.filter(f =>
         f.url &&
         f.vcodec !== "none" &&
-        (f.ext === "mp4" || f.ext === "webm") &&
-        !f.is_dash
+        f.acodec !== "none" &&
+        f.ext === "mp4" &&
+        f.vcodec && f.vcodec.startsWith("avc1")
       )
     : [];
+
+  // If no compatible format, return null so frontend can skip
+  if (compatibleFormats.length === 0) {
+    return null;
+  }
+
+  // You can still include all formats if you want fallback options for other browsers
+  const allFormats = data.formats || [];
 
   return {
     id: data.id,
@@ -107,7 +156,8 @@ export async function getVideoInfo(id) {
     duration: data.duration,
     uploader: data.uploader,
     view_count: data.view_count,
-    formats
+    formats: compatibleFormats,        // only Safari-safe ones (recommended)
+    // allFormats: allFormats,         // uncomment if you want all for non-Safari
   };
 }
 
@@ -121,9 +171,16 @@ export async function getRelated(id) {
     `https://www.youtube.com/watch?v=${id}&list=RD${id}`
   ]);
 
-  return Array.isArray(data.entries)
-    ? data.entries.map(normalizeVideo).filter(Boolean)
-    : [];
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+
+  const filtered = [];
+  for (const entry of entries) {
+    if (await hasSafariCompatibleFormat(entry.id)) {
+      filtered.push(normalizeVideo(entry));
+    }
+  }
+
+  return filtered;
 }
 
 /* ===================== CHANNEL ===================== */
@@ -136,7 +193,14 @@ export async function getChannel(channelId) {
     `https://www.youtube.com/channel/${channelId}`
   ]);
 
-  return Array.isArray(data.entries)
-    ? data.entries.map(normalizeVideo).filter(Boolean)
-    : [];
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+
+  const filtered = [];
+  for (const entry of entries) {
+    if (await hasSafariCompatibleFormat(entry.id)) {
+      filtered.push(normalizeVideo(entry));
+    }
+  }
+
+  return filtered;
 }
