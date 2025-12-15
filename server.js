@@ -1,123 +1,105 @@
 import express from "express";
 import cors from "cors";
-import { execFile } from "node:child_process";
-import util from "node:util";
-
-const execFileAsync = util.promisify(execFile);
+import { exec } from "child_process";
+import path from "path";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const FRONTEND_ORIGIN = [
-  "https://bigmoney21682-hub.github.io",
-  "http://localhost:5173",
-  "http://localhost:3000",
-];
 
-app.use(
-  cors({
-    origin: FRONTEND_ORIGIN,
-    credentials: true,
-  })
-);
+app.use(cors()); // Allow cross-origin requests
 
-// Helper to run yt-dlp and parse JSON
-async function ytDlpJSON(args) {
-  try {
-    const { stdout } = await execFileAsync("./bin/yt-dlp", [
-      "--dump-json",
-      "--no-warnings",
-      ...args,
-    ]);
-    return JSON.parse(stdout);
-  } catch (err) {
-    console.error("yt-dlp error:", err.message);
-    throw err;
-  }
-}
+const YTDLP = path.resolve("./bin/yt-dlp");
 
-// Search endpoint
+// --- SEARCH ---
 app.get("/search", async (req, res) => {
   const { q } = req.query;
-  if (!q) return res.status(400).json({ error: "Missing query" });
+  if (!q) return res.status(400).json({ error: "Missing query parameter" });
 
   try {
-    const data = await execFileAsync("./bin/yt-dlp", [
-      `ytsearch10:${q}`,
-      "--dump-json",
-      "--no-warnings",
-    ]);
-
-    // Parse each line separately
-    const results = data.stdout
-      .split("\n")
-      .filter(Boolean)
-      .map(line => JSON.parse(line));
-
-    res.json(results);
-  } catch (err) {
-    console.error("Search error:", err);
+    const cmd = `${YTDLP} "ytsearch20:${q}" --dump-json --no-warnings`;
+    exec(cmd, { maxBuffer: 1024 * 1024 * 10 }, (err, stdout, stderr) => {
+      if (err) {
+        console.error("Search error:", stderr);
+        return res.status(500).json({ error: stderr });
+      }
+      const videos = stdout
+        .split(/\r?\n(?=\{)/)
+        .filter(Boolean)
+        .map(line => JSON.parse(line));
+      res.json(videos);
+    });
+  } catch (e) {
+    console.error(e);
     res.status(500).json({ error: "Search failed" });
   }
 });
 
-// Video info endpoint
+// --- VIDEO ---
 app.get("/video", async (req, res) => {
   const { id } = req.query;
   if (!id) return res.status(400).json({ error: "Missing video id" });
 
   try {
-    const video = await ytDlpJSON([`https://www.youtube.com/watch?v=${id}`]);
-    res.json(video);
-  } catch (err) {
-    res.status(500).json({ error: "Invalid video data" });
+    const cmd = `${YTDLP} -j https://www.youtube.com/watch?v=${id} --no-warnings`;
+    exec(cmd, { maxBuffer: 1024 * 1024 * 10 }, (err, stdout, stderr) => {
+      if (err) {
+        console.error("Video fetch error:", stderr);
+        return res.status(500).json({ error: stderr });
+      }
+      const video = JSON.parse(stdout);
+      res.json(video);
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to fetch video" });
   }
 });
 
-// Related videos
+// --- RELATED ---
 app.get("/related", async (req, res) => {
   const { id } = req.query;
   if (!id) return res.status(400).json({ error: "Missing video id" });
 
   try {
-    const related = await execFileAsync("./bin/yt-dlp", [
-      `ytrelated:${id}`,
-      "--dump-json",
-      "--no-warnings",
-    ]);
-
-    const results = related.stdout
-      .split("\n")
-      .filter(Boolean)
-      .map(line => JSON.parse(line));
-
-    res.json(results);
-  } catch (err) {
-    console.error("Related error:", err);
+    const cmd = `${YTDLP} "ytsearch10:related to ${id}" --dump-json --no-warnings`;
+    exec(cmd, { maxBuffer: 1024 * 1024 * 10 }, (err, stdout, stderr) => {
+      if (err) {
+        console.error("Related error:", stderr);
+        return res.status(500).json({ error: stderr });
+      }
+      const videos = stdout
+        .split(/\r?\n(?=\{)/)
+        .filter(Boolean)
+        .map(line => JSON.parse(line));
+      res.json(videos);
+    });
+  } catch (e) {
+    console.error(e);
     res.status(500).json({ error: "Failed to fetch related videos" });
   }
 });
 
-// Trending (example: top YouTube videos)
+// --- TRENDING ---
 app.get("/trending", async (req, res) => {
   try {
-    const trending = await execFileAsync("./bin/yt-dlp", [
-      "https://www.youtube.com/feed/trending",
-      "--dump-json",
-      "--no-warnings",
-    ]);
-
-    const results = trending.stdout
-      .split("\n")
-      .filter(Boolean)
-      .map(line => JSON.parse(line));
-
-    res.json(results);
-  } catch (err) {
-    console.error("Trending error:", err);
-    res.status(500).json({ error: "Failed to fetch trending" });
+    const cmd = `${YTDLP} "ytsearch50:trending videos" --dump-json --no-warnings`;
+    exec(cmd, { maxBuffer: 1024 * 1024 * 20 }, (err, stdout, stderr) => {
+      if (err) {
+        console.error("Trending error:", stderr);
+        return res.status(500).json({ error: stderr });
+      }
+      const videos = stdout
+        .split(/\r?\n(?=\{)/)
+        .filter(Boolean)
+        .map(line => JSON.parse(line));
+      res.json(videos);
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to fetch trending videos" });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running at http://localhost:${PORT}`);
 });
