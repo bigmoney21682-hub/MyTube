@@ -1,185 +1,123 @@
 import express from "express";
 import cors from "cors";
-import { spawn } from "child_process";
-import fs from "fs";
+import { execFile } from "node:child_process";
+import util from "node:util";
+
+const execFileAsync = util.promisify(execFile);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const FRONTEND_ORIGIN = [
+  "https://bigmoney21682-hub.github.io",
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
 
-/* ===============================
-   yt-dlp PATH (RENDER SAFE)
-================================ */
-const YTDLP_PATH =
-  process.env.YTDLP_PATH ||
-  "/opt/render/project/src/bin/yt-dlp";
-
-if (!fs.existsSync(YTDLP_PATH)) {
-  console.error("❌ yt-dlp not found at:", YTDLP_PATH);
-  process.exit(1);
-}
-
-console.log("✅ yt-dlp found at:", YTDLP_PATH);
-
-/* ===============================
-   CORS
-================================ */
 app.use(
   cors({
-    origin: [
-      "https://bigmoney21682-hub.github.io",
-      "http://localhost:5173",
-      "http://localhost:3000"
-    ]
+    origin: FRONTEND_ORIGIN,
+    credentials: true,
   })
 );
 
-app.use(express.json());
-
-/* ===============================
-   yt-dlp helper
-================================ */
-function runYtDlp(args) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(YTDLP_PATH, args);
-
-    let out = "";
-    let err = "";
-
-    proc.stdout.on("data", d => (out += d));
-    proc.stderr.on("data", d => (err += d));
-
-    proc.on("close", code => {
-      if (code !== 0) return reject(err || "yt-dlp failed");
-
-      try {
-        resolve(JSON.parse(out));
-      } catch {
-        reject("Invalid JSON from yt-dlp");
-      }
-    });
-  });
+// Helper to run yt-dlp and parse JSON
+async function ytDlpJSON(args) {
+  try {
+    const { stdout } = await execFileAsync("./bin/yt-dlp", [
+      "--dump-json",
+      "--no-warnings",
+      ...args,
+    ]);
+    return JSON.parse(stdout);
+  } catch (err) {
+    console.error("yt-dlp error:", err.message);
+    throw err;
+  }
 }
 
-/* ===============================
-   HEALTH CHECK (KEEPS APP ALIVE)
-================================ */
-app.get("/", (_req, res) => {
-  res.send("✅ MyTube backend alive");
-});
-
-/* ===============================
-   SEARCH
-================================ */
+// Search endpoint
 app.get("/search", async (req, res) => {
+  const { q } = req.query;
+  if (!q) return res.status(400).json({ error: "Missing query" });
+
   try {
-    const data = await runYtDlp([
-      `ytsearch20:${req.query.q}`,
+    const data = await execFileAsync("./bin/yt-dlp", [
+      `ytsearch10:${q}`,
       "--dump-json",
-      "--flat-playlist",
-      "--no-warnings"
+      "--no-warnings",
     ]);
 
-    const list = Array.isArray(data) ? data : [data];
+    // Parse each line separately
+    const results = data.stdout
+      .split("\n")
+      .filter(Boolean)
+      .map(line => JSON.parse(line));
 
-    res.json(
-      list.map(v => ({
-        id: v.id,
-        title: v.title,
-        thumbnail: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
-        duration: v.duration,
-        uploader: v.uploader,
-        view_count: v.view_count
-      }))
-    );
-  } catch (e) {
-    console.error(e);
+    res.json(results);
+  } catch (err) {
+    console.error("Search error:", err);
     res.status(500).json({ error: "Search failed" });
   }
 });
 
-/* ===============================
-   TRENDING
-================================ */
-app.get("/trending", async (_req, res) => {
+// Video info endpoint
+app.get("/video", async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.status(400).json({ error: "Missing video id" });
+
   try {
-    const data = await runYtDlp([
+    const video = await ytDlpJSON([`https://www.youtube.com/watch?v=${id}`]);
+    res.json(video);
+  } catch (err) {
+    res.status(500).json({ error: "Invalid video data" });
+  }
+});
+
+// Related videos
+app.get("/related", async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.status(400).json({ error: "Missing video id" });
+
+  try {
+    const related = await execFileAsync("./bin/yt-dlp", [
+      `ytrelated:${id}`,
+      "--dump-json",
+      "--no-warnings",
+    ]);
+
+    const results = related.stdout
+      .split("\n")
+      .filter(Boolean)
+      .map(line => JSON.parse(line));
+
+    res.json(results);
+  } catch (err) {
+    console.error("Related error:", err);
+    res.status(500).json({ error: "Failed to fetch related videos" });
+  }
+});
+
+// Trending (example: top YouTube videos)
+app.get("/trending", async (req, res) => {
+  try {
+    const trending = await execFileAsync("./bin/yt-dlp", [
       "https://www.youtube.com/feed/trending",
       "--dump-json",
-      "--flat-playlist",
-      "--no-warnings"
+      "--no-warnings",
     ]);
 
-    const list = Array.isArray(data) ? data : [data];
+    const results = trending.stdout
+      .split("\n")
+      .filter(Boolean)
+      .map(line => JSON.parse(line));
 
-    res.json(
-      list.map(v => ({
-        id: v.id,
-        title: v.title,
-        thumbnail: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
-        duration: v.duration,
-        uploader: v.uploader,
-        view_count: v.view_count
-      }))
-    );
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Trending failed" });
+    res.json(results);
+  } catch (err) {
+    console.error("Trending error:", err);
+    res.status(500).json({ error: "Failed to fetch trending" });
   }
 });
 
-/* ===============================
-   VIDEO
-================================ */
-app.get("/video", async (req, res) => {
-  try {
-    const data = await runYtDlp([
-      `https://www.youtube.com/watch?v=${req.query.id}`,
-      "--dump-json",
-      "--no-warnings"
-    ]);
-
-    res.json(data);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Video failed" });
-  }
-});
-
-/* ===============================
-   RELATED
-================================ */
-app.get("/related", async (req, res) => {
-  try {
-    const data = await runYtDlp([
-      `https://www.youtube.com/watch?v=${req.query.id}`,
-      "--dump-json",
-      "--flat-playlist",
-      "--playlist-end",
-      "20",
-      "--no-warnings"
-    ]);
-
-    const list = Array.isArray(data) ? data : [data];
-
-    res.json(
-      list.map(v => ({
-        id: v.id,
-        title: v.title,
-        thumbnail: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
-        duration: v.duration,
-        uploader: v.uploader,
-        view_count: v.view_count
-      }))
-    );
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Related failed" });
-  }
-});
-
-/* ===============================
-   START
-================================ */
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 MyTube backend running on port ${PORT}`);
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
