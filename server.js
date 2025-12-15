@@ -1,9 +1,15 @@
+// Filename: server.js
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-import { searchVideos, getTrending, getVideoInfo, getChannel } from "./utils/yt.js";
+import {
+  searchVideos,
+  getTrending,
+  getVideoInfo,
+  getChannel
+} from "./utils/yt.js";
 
 dotenv.config();
 
@@ -18,66 +24,101 @@ app.use(cors({
 
 app.use(express.json());
 
-// Routes
+// ==========================
+// ROUTES
+// ==========================
+
+// Trending videos
 app.get("/trending", async (req, res) => {
   try {
     const videos = await getTrending();
-    res.json(videos);
+    res.json(videos || []);
   } catch (err) {
     console.error("Trending route error:", err.message);
-    res.status(500).json({ error: "Failed to fetch trending videos" });
+    res.json([]); // always return empty array instead of 500
   }
 });
 
+// Search videos
 app.get("/search", async (req, res) => {
   const { q } = req.query;
-  if (!q) return res.status(400).json({ error: "Missing search query" });
+  if (!q) return res.json([]); // safe fallback
 
   try {
     const videos = await searchVideos(q);
-    res.json(videos);
+    res.json(videos || []);
   } catch (err) {
     console.error("Search route error:", err.message);
-    res.status(500).json({ error: "Failed to search videos" });
+    res.json([]); // fallback
   }
 });
 
+// Video details
 app.get("/video/:id", async (req, res) => {
   const { id } = req.params;
+  if (!id) return res.json({ id, title: "Invalid video", thumbnail: "", duration: 0, uploader: "Unknown", view_count: 0, formats: [] });
+
   try {
     const video = await getVideoInfo(id);
-    res.json(video);
+    res.json(video || {
+      id,
+      title: "Video unavailable",
+      thumbnail: "https://i.ytimg.com/vi/0/hqdefault.jpg",
+      duration: 0,
+      uploader: "Unknown",
+      view_count: 0,
+      formats: []
+    });
   } catch (err) {
-    console.error("Video route error:", err.message);
-    res.status(500).json({ error: "Failed to fetch video info" });
+    console.error(`Video route error (${id}):`, err.message);
+    res.json({
+      id,
+      title: "Video unavailable",
+      thumbnail: "https://i.ytimg.com/vi/0/hqdefault.jpg",
+      duration: 0,
+      uploader: "Unknown",
+      view_count: 0,
+      formats: []
+    });
   }
 });
 
+// Channel videos
 app.get("/channel/:id", async (req, res) => {
   const { id } = req.params;
+  if (!id) return res.json([]);
   try {
     const videos = await getChannel(id);
-    res.json(videos);
+    res.json(videos || []);
   } catch (err) {
-    console.error("Channel route error:", err.message);
-    res.status(500).json({ error: "Failed to fetch channel videos" });
+    console.error(`Channel route error (${id}):`, err.message);
+    res.json([]);
   }
 });
 
-// Serve frontend safely if exists
+// ==========================
+// Serve frontend (optional)
+// ==========================
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const frontendPath = path.join(__dirname, "public");
 
-import fs from "fs";
-if (fs.existsSync(frontendPath)) {
-  app.use(express.static(frontendPath));
-  app.get("*", (req, res) => res.sendFile(path.join(frontendPath, "index.html")));
-}
+app.use(express.static(path.join(__dirname, "public")));
+app.get("*", (req, res) => {
+  const indexFile = path.join(__dirname, "public", "index.html");
+  res.sendFile(indexFile, err => {
+    if (err) {
+      console.error("Frontend file error:", err.message);
+      res.status(404).send("Frontend not found");
+    }
+  });
+});
 
-// Start server
+// ==========================
+// START SERVER
+// ==========================
 app.listen(PORT, () => {
   console.log(`\n==> ///////////////////////////////////////////////////////////`);
   console.log(`==> MyTube backend running at http://localhost:${PORT}`);
+  console.log(`==> Available at your primary URL ${process.env.RENDER_EXTERNAL_URL || ""}`);
   console.log(`==> ///////////////////////////////////////////////////////////\n`);
 });
