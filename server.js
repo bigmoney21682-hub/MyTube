@@ -1,9 +1,12 @@
 import express from "express";
 import cors from "cors";
-import ytdlp from "yt-dlp-exec";
+import { spawn } from "child_process";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Path to yt-dlp binary (Render)
+const YTDLP = process.env.YTDLP_PATH || "yt-dlp";
 
 app.use(cors());
 app.use(express.json());
@@ -21,6 +24,32 @@ app.get("/", (req, res) => {
 });
 
 /* -------------------- */
+/* HELPER: RUN yt-dlp  */
+/* -------------------- */
+function runYtDlp(args) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(YTDLP, args);
+    let out = "";
+    let err = "";
+
+    proc.stdout.on("data", d => (out += d));
+    proc.stderr.on("data", d => (err += d));
+
+    proc.on("close", code => {
+      if (code !== 0) {
+        reject(err || "yt-dlp failed");
+      } else {
+        try {
+          resolve(JSON.parse(out));
+        } catch (e) {
+          reject("Invalid yt-dlp JSON");
+        }
+      }
+    });
+  });
+}
+
+/* -------------------- */
 /* SEARCH              */
 /* -------------------- */
 app.get("/search", async (req, res) => {
@@ -28,10 +57,11 @@ app.get("/search", async (req, res) => {
   if (!q) return res.json([]);
 
   try {
-    const data = await ytdlp(`ytsearch15:${q}`, {
-      dumpSingleJson: true,
-      skipDownload: true
-    });
+    const data = await runYtDlp([
+      `ytsearch15:${q}`,
+      "--dump-single-json",
+      "--skip-download"
+    ]);
 
     const results = (data.entries || []).map(v => ({
       id: v.id,
@@ -53,14 +83,12 @@ app.get("/search", async (req, res) => {
 /* -------------------- */
 app.get("/trending", async (req, res) => {
   try {
-    const data = await ytdlp(
+    const data = await runYtDlp([
       "https://www.youtube.com/feed/trending",
-      {
-        dumpSingleJson: true,
-        flatPlaylist: true,
-        skipDownload: true
-      }
-    );
+      "--dump-single-json",
+      "--flat-playlist",
+      "--skip-download"
+    ]);
 
     const videos = (data.entries || []).map(v => ({
       id: v.id,
@@ -90,24 +118,22 @@ app.get("/video", async (req, res) => {
   }
 
   try {
-    const data = await ytdlp(
+    const data = await runYtDlp([
       `https://www.youtube.com/watch?v=${id}`,
-      {
-        dumpSingleJson: true,
-        noWarnings: true,
-        noCheckCertificates: true,
-        preferFreeFormats: true,
-        youtubeSkipDashManifest: true
-      }
-    );
+      "--dump-single-json",
+      "--no-warnings",
+      "--no-check-certificates",
+      "--prefer-free-formats",
+      "--youtube-skip-dash-manifest"
+    ]);
 
-    // ✅ CACHE STORE (limit size)
+    // Cache limit
     if (videoCache.size > 50) {
       const firstKey = videoCache.keys().next().value;
       videoCache.delete(firstKey);
     }
-    videoCache.set(id, data);
 
+    videoCache.set(id, data);
     res.json(data);
   } catch (err) {
     console.error("Video error:", err);
