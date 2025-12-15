@@ -1,54 +1,123 @@
 import express from "express";
 import cors from "cors";
-
-import videoRouter from "./routes/video.js";
-import searchRouter from "./routes/search.js";
-import trendingRouter from "./routes/trending.js";
-import channelRouter from "./routes/channel.js";
+import ytdlp from "yt-dlp-exec";
 
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
-/* -------------------- CORS (explicit, browser-safe) -------------------- */
-app.use(
-  cors({
-    origin: "*", // allow direct browser testing for now
-    methods: ["GET"],
-    allowedHeaders: ["Content-Type"],
-  })
-);
-
-/* -------------------- Middleware -------------------- */
+app.use(cors());
 app.use(express.json());
 
-/* Simple request logger (CRITICAL for sanity checks) */
-app.use((req, res, next) => {
-  console.log(`[REQ] ${req.method} ${req.originalUrl}`);
-  next();
-});
+/* -------------------- */
+/* SIMPLE IN-MEM CACHE */
+/* -------------------- */
+const videoCache = new Map();
 
-/* -------------------- Routes -------------------- */
-app.use("/video", videoRouter);
-app.use("/search", searchRouter);
-app.use("/trending", trendingRouter);
-app.use("/channel", channelRouter);
-
-/* -------------------- Health check -------------------- */
+/* -------------------- */
+/* HEALTH CHECK        */
+/* -------------------- */
 app.get("/", (req, res) => {
-  res.json({
-    status: "ok",
-    service: "MyTube Backend",
-    timestamp: new Date().toISOString(),
-  });
+  res.send("MyTube backend running");
 });
 
-/* -------------------- Error handler -------------------- */
-app.use((err, req, res, next) => {
-  console.error("[ERROR]", err);
-  res.status(500).json({ error: "Internal server error" });
+/* -------------------- */
+/* SEARCH              */
+/* -------------------- */
+app.get("/search", async (req, res) => {
+  const q = req.query.q;
+  if (!q) return res.json([]);
+
+  try {
+    const data = await ytdlp(`ytsearch15:${q}`, {
+      dumpSingleJson: true,
+      skipDownload: true
+    });
+
+    const results = (data.entries || []).map(v => ({
+      id: v.id,
+      title: v.title,
+      thumbnail: v.thumbnail,
+      uploader: v.uploader,
+      view_count: v.view_count || 0
+    }));
+
+    res.json(results);
+  } catch (err) {
+    console.error("Search error:", err);
+    res.status(500).json([]);
+  }
 });
 
-/* -------------------- Start server -------------------- */
-app.listen(port, () => {
-  console.log(`🚀 MyTube backend listening on port ${port}`);
+/* -------------------- */
+/* TRENDING             */
+/* -------------------- */
+app.get("/trending", async (req, res) => {
+  try {
+    const data = await ytdlp(
+      "https://www.youtube.com/feed/trending",
+      {
+        dumpSingleJson: true,
+        flatPlaylist: true,
+        skipDownload: true
+      }
+    );
+
+    const videos = (data.entries || []).map(v => ({
+      id: v.id,
+      title: v.title,
+      thumbnail: v.thumbnail,
+      uploader: v.uploader,
+      view_count: v.view_count || 0
+    }));
+
+    res.json(videos);
+  } catch (err) {
+    console.error("Trending error:", err);
+    res.status(500).json([]);
+  }
+});
+
+/* -------------------- */
+/* VIDEO (CACHED)      */
+/* -------------------- */
+app.get("/video", async (req, res) => {
+  const id = req.query.id;
+  if (!id) return res.status(400).json({ error: "Missing id" });
+
+  // ✅ CACHE HIT
+  if (videoCache.has(id)) {
+    return res.json(videoCache.get(id));
+  }
+
+  try {
+    const data = await ytdlp(
+      `https://www.youtube.com/watch?v=${id}`,
+      {
+        dumpSingleJson: true,
+        noWarnings: true,
+        noCheckCertificates: true,
+        preferFreeFormats: true,
+        youtubeSkipDashManifest: true
+      }
+    );
+
+    // ✅ CACHE STORE (limit size)
+    if (videoCache.size > 50) {
+      const firstKey = videoCache.keys().next().value;
+      videoCache.delete(firstKey);
+    }
+    videoCache.set(id, data);
+
+    res.json(data);
+  } catch (err) {
+    console.error("Video error:", err);
+    res.status(500).json({ error: "yt-dlp failed" });
+  }
+});
+
+/* -------------------- */
+/* START SERVER        */
+/* -------------------- */
+app.listen(PORT, () => {
+  console.log(`MyTube backend running on port ${PORT}`);
 });
