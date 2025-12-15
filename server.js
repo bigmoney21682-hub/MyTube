@@ -1,81 +1,93 @@
 import express from "express";
 import cors from "cors";
-import { exec } from "child_process";
 import path from "path";
-import fs from "fs";
+import { fileURLToPath } from "url";
+import {
+  searchVideos,
+  getTrending,
+  getVideoInfo,
+  getChannel,
+} from "./utils/yt.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- CORS Setup ---
-app.use(cors({
-    origin: "*", // Can restrict to your frontend domain later
-    methods: ["GET"]
-}));
+// -------------------
+// Middleware
+// -------------------
+app.use(cors()); // allows all origins by default
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
 
-// --- Helper function to call yt-dlp ---
-function runYtdlp(url, callback) {
-    const cookiesPath = path.resolve("./bin/cookies.txt");
+// -------------------
+// Routes
+// -------------------
 
-    // Use cookies if available
-    const cookiesOption = fs.existsSync(cookiesPath) ? `--cookies ${cookiesPath}` : "";
-    const cmd = `./bin/yt-dlp ${url} --dump-json --no-warnings ${cookiesOption}`;
-
-    exec(cmd, (err, stdout, stderr) => {
-        if (err) return callback(stderr || err.message);
-        try {
-            const lines = stdout.split("\n").filter(Boolean);
-            const data = lines.map(line => JSON.parse(line));
-            callback(null, data);
-        } catch (parseErr) {
-            callback(parseErr.message);
-        }
-    });
-}
-
-// --- Video endpoint ---
-app.get("/video", (req, res) => {
-    const { id } = req.query;
-    if (!id) return res.status(400).json({ error: "Missing video id" });
-
-    runYtdlp(`https://www.youtube.com/watch?v=${id}`, (err, data) => {
-        if (err) return res.status(500).json({ error: "Invalid video data", details: err });
-        res.json(data[0]); // single video
-    });
+// GET /search?q=some+query
+app.get("/search", async (req, res) => {
+  const { q } = req.query;
+  if (!q) return res.status(400).json({ error: "Missing query parameter 'q'" });
+  try {
+    const results = await searchVideos(q);
+    res.json(results);
+  } catch (err) {
+    console.error("Search error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// --- Search endpoint ---
-app.get("/search", (req, res) => {
-    const { q } = req.query;
-    if (!q) return res.status(400).json({ error: "Missing query" });
-
-    runYtdlp(`ytsearch50:${q}`, (err, data) => {
-        if (err) return res.status(500).json({ error: "Search failed", details: err });
-        res.json(data);
-    });
+// GET /trending?region=US
+app.get("/trending", async (req, res) => {
+  const region = req.query.region || "US";
+  try {
+    const results = await getTrending(region);
+    res.json(results);
+  } catch (err) {
+    console.error("Trending error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// --- Trending endpoint ---
-app.get("/trending", (req, res) => {
-    // Can switch to subscriptions later
-    runYtdlp(`https://www.youtube.com/feed/trending`, (err, data) => {
-        if (err) return res.status(500).json({ error: "Failed to fetch trending", details: err });
-        res.json(data);
-    });
+// GET /video/:id
+app.get("/video/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const info = await getVideoInfo(id);
+    res.json(info);
+  } catch (err) {
+    console.error("Video info error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// --- Related videos endpoint ---
-app.get("/related", (req, res) => {
-    const { id } = req.query;
-    if (!id) return res.status(400).json({ error: "Missing video id" });
-
-    runYtdlp(`https://www.youtube.com/watch?v=${id} --get-comments`, (err, data) => {
-        if (err) return res.status(500).json({ error: "Failed to fetch related videos", details: err });
-        res.json(data);
-    });
+// GET /channel/:id
+app.get("/channel/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const videos = await getChannel(id);
+    res.json(videos);
+  } catch (err) {
+    console.error("Channel error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// --- Start server ---
+// Health check
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+// Catch-all
+app.use((req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+// -------------------
+// Start server
+// -------------------
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
