@@ -7,18 +7,13 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Path to cookies file
+// Cookies file (must be Netscape format)
 const COOKIES_PATH = path.join(__dirname, "cookies.txt");
 
-// Path to yt-dlp binary (adjust if using Render bin folder)
-const YTDLP =
-  process.env.YTDLP_PATH ||
-  "./bin/yt-dlp" ||
-  "yt-dlp";
+// yt-dlp binary (Render)
+const YTDLP = process.env.YTDLP_PATH || "./bin/yt-dlp";
 
-/**
- * Run yt-dlp and return parsed JSON
- */
+/* ===================== CORE RUNNER ===================== */
 function runYtDlp(args) {
   return new Promise((resolve, reject) => {
     const proc = spawn(YTDLP, args);
@@ -42,9 +37,7 @@ function runYtDlp(args) {
   });
 }
 
-/**
- * Normalize a yt-dlp video entry
- */
+/* ===================== NORMALIZER ===================== */
 function normalizeVideo(v) {
   if (!v || !v.id) return null;
 
@@ -52,17 +45,14 @@ function normalizeVideo(v) {
     id: v.id,
     title: v.title,
     thumbnail:
-      v.thumbnail ||
-      `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
+      v.thumbnail || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
     duration: v.duration,
     uploader: v.uploader,
     view_count: v.view_count
   };
 }
 
-/**
- * SEARCH
- */
+/* ===================== SEARCH ===================== */
 export async function searchVideos(query) {
   const data = await runYtDlp([
     "-J",
@@ -77,34 +67,24 @@ export async function searchVideos(query) {
     : [];
 }
 
-/**
- * TRENDING ✅
- * Uses stable YouTube playlist
- */
+/* ===================== TRENDING ===================== */
 export async function getTrending() {
-  try {
-    const playlistId = "PLBCF2DAC6FFB574DE"; // YouTube trending playlist
+  const playlistId = "PLBCF2DAC6FFB574DE";
 
-    const data = await runYtDlp([
-      "-J",
-      "--flat-playlist",
-      "--cookies", COOKIES_PATH,
-      "--js-runtimes", "node",
-      `https://www.youtube.com/playlist?list=${playlistId}`
-    ]);
+  const data = await runYtDlp([
+    "-J",
+    "--flat-playlist",
+    "--cookies", COOKIES_PATH,
+    "--js-runtimes", "node",
+    `https://www.youtube.com/playlist?list=${playlistId}`
+  ]);
 
-    return Array.isArray(data.entries)
-      ? data.entries.map(normalizeVideo).filter(Boolean)
-      : [];
-  } catch (err) {
-    console.error("Trending fetch error:", err.message);
-    return [];
-  }
+  return Array.isArray(data.entries)
+    ? data.entries.map(normalizeVideo).filter(Boolean)
+    : [];
 }
 
-/**
- * VIDEO DETAILS
- */
+/* ===================== VIDEO DETAILS ===================== */
 export async function getVideoInfo(id) {
   const data = await runYtDlp([
     "-J",
@@ -124,16 +104,14 @@ export async function getVideoInfo(id) {
   };
 }
 
-/**
- * CHANNEL
- */
-export async function getChannel(channelId) {
+/* ===================== RELATED (FIXED) ===================== */
+export async function getRelated(id) {
   const data = await runYtDlp([
     "-J",
     "--flat-playlist",
     "--cookies", COOKIES_PATH,
     "--js-runtimes", "node",
-    `https://www.youtube.com/channel/${channelId}`
+    `https://www.youtube.com/watch?v=${id}&list=RD${id}`
   ]);
 
   return Array.isArray(data.entries)
@@ -141,16 +119,14 @@ export async function getChannel(channelId) {
     : [];
 }
 
-/**
- * RELATED VIDEOS
- */
-export async function getRelated(id) {
+/* ===================== CHANNEL ===================== */
+export async function getChannel(channelId) {
   const data = await runYtDlp([
     "-J",
     "--flat-playlist",
     "--cookies", COOKIES_PATH,
     "--js-runtimes", "node",
-    `ytrelated:${id}`
+    `https://www.youtube.com/channel/${channelId}`
   ]);
 
   return Array.isArray(data.entries)
