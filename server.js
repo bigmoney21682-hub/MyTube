@@ -1,124 +1,38 @@
-// Filename: server.js
+// server.js
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
-import {
-  searchVideos,
-  getTrending,
-  getVideoInfo,
-  getChannel
-} from "./utils/yt.js";
-
-dotenv.config();
+import { searchVideos, getVideoInfo } from "./utils/yt.js";
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3000;
 
-// Setup CORS
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "*",
-  methods: ["GET", "POST"]
-}));
-
+app.use(cors());
 app.use(express.json());
 
-// ==========================
-// ROUTES
-// ==========================
-
-// Trending videos
-app.get("/trending", async (req, res) => {
-  try {
-    const videos = await getTrending();
-    res.json(videos || []);
-  } catch (err) {
-    console.error("Trending route error:", err.message);
-    res.json([]); // always return empty array instead of 500
-  }
-});
-
-// Search videos
+// SEARCH
 app.get("/search", async (req, res) => {
   const { q } = req.query;
-  if (!q) return res.json([]); // safe fallback
-
+  if (!q) return res.status(400).json({ error: "Missing query" });
   try {
     const videos = await searchVideos(q);
-    res.json(videos || []);
+    res.json(videos);
   } catch (err) {
-    console.error("Search route error:", err.message);
-    res.json([]); // fallback
+    console.error("Search error:", err.message);
+    res.status(500).json({ error: "Failed to search videos" });
   }
 });
 
-// Video details
+// VIDEO INFO
 app.get("/video/:id", async (req, res) => {
-  const { id } = req.params;
-  if (!id) return res.json({ id, title: "Invalid video", thumbnail: "", duration: 0, uploader: "Unknown", view_count: 0, formats: [] });
-
   try {
-    const video = await getVideoInfo(id);
-    res.json(video || {
-      id,
-      title: "Video unavailable",
-      thumbnail: "https://i.ytimg.com/vi/0/hqdefault.jpg",
-      duration: 0,
-      uploader: "Unknown",
-      view_count: 0,
-      formats: []
-    });
+    const video = await getVideoInfo(req.params.id);
+    res.json(video);
   } catch (err) {
-    console.error(`Video route error (${id}):`, err.message);
-    res.json({
-      id,
-      title: "Video unavailable",
-      thumbnail: "https://i.ytimg.com/vi/0/hqdefault.jpg",
-      duration: 0,
-      uploader: "Unknown",
-      view_count: 0,
-      formats: []
-    });
+    console.error("Video error:", err.message);
+    res.status(500).json({ error: "Failed to fetch video info" });
   }
 });
 
-// Channel videos
-app.get("/channel/:id", async (req, res) => {
-  const { id } = req.params;
-  if (!id) return res.json([]);
-  try {
-    const videos = await getChannel(id);
-    res.json(videos || []);
-  } catch (err) {
-    console.error(`Channel route error (${id}):`, err.message);
-    res.json([]);
-  }
-});
-
-// ==========================
-// Serve frontend (optional)
-// ==========================
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-app.use(express.static(path.join(__dirname, "public")));
-app.get("*", (req, res) => {
-  const indexFile = path.join(__dirname, "public", "index.html");
-  res.sendFile(indexFile, err => {
-    if (err) {
-      console.error("Frontend file error:", err.message);
-      res.status(404).send("Frontend not found");
-    }
-  });
-});
-
-// ==========================
-// START SERVER
-// ==========================
 app.listen(PORT, () => {
-  console.log(`\n==> ///////////////////////////////////////////////////////////`);
-  console.log(`==> MyTube backend running at http://localhost:${PORT}`);
-  console.log(`==> Available at your primary URL ${process.env.RENDER_EXTERNAL_URL || ""}`);
-  console.log(`==> ///////////////////////////////////////////////////////////\n`);
+  console.log(`Backend running at http://localhost:${PORT}`);
 });
