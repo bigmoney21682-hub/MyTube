@@ -1,38 +1,77 @@
-// server.js
+// Filename: server.js
 import express from "express";
 import cors from "cors";
-import { searchVideos, getVideoInfo } from "./utils/yt.js";
+import {
+  searchVideos,
+  getTrending,
+  getVideoInfo,
+  getRelated
+} from "./utils/yt.js";
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 app.use(cors());
 app.use(express.json());
 
-// SEARCH
+/* ================= SEARCH ================= */
 app.get("/search", async (req, res) => {
-  const { q } = req.query;
-  if (!q) return res.status(400).json({ error: "Missing query" });
   try {
-    const videos = await searchVideos(q);
-    res.json(videos);
+    const q = req.query.q;
+    if (!q) return res.json([]);
+
+    const results = await searchVideos(q);
+    res.json(results);
   } catch (err) {
     console.error("Search error:", err.message);
-    res.status(500).json({ error: "Failed to search videos" });
+    res.status(500).json({ error: "Search failed" });
   }
 });
 
-// VIDEO INFO
-app.get("/video/:id", async (req, res) => {
+/* ================= TRENDING ================= */
+app.get("/trending", async (req, res) => {
   try {
-    const video = await getVideoInfo(req.params.id);
-    res.json(video);
+    const videos = await getTrending();
+    res.json(videos);
+  } catch (err) {
+    console.error("Trending error:", err.message);
+    res.status(500).json([]);
+  }
+});
+
+/* ================= VIDEO ================= */
+app.get("/video", async (req, res) => {
+  try {
+    const id = req.query.id;
+    if (!id) return res.status(400).json({ error: "Missing id" });
+
+    const info = await getVideoInfo(id);
+    res.json(info);
   } catch (err) {
     console.error("Video error:", err.message);
-    res.status(500).json({ error: "Failed to fetch video info" });
+    res.status(500).json({ error: "Failed to load video" });
   }
+});
+
+/* ================= RELATED ================= */
+app.get("/related", async (req, res) => {
+  try {
+    const id = req.query.id;
+    if (!id) return res.json([]);
+
+    const videos = await getRelated(id);
+    res.json(videos);
+  } catch (err) {
+    console.error("Related error:", err.message);
+    res.json([]);
+  }
+});
+
+/* ================= HEALTH ================= */
+app.get("/", (req, res) => {
+  res.send("MyTube backend running ✅");
 });
 
 app.listen(PORT, () => {
-  console.log(`Backend running at http://localhost:${PORT}`);
+  console.log(`MyTube backend running on port ${PORT}`);
 });
