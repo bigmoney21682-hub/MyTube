@@ -12,6 +12,12 @@ const YTDLP = process.env.YTDLP_PATH || "./bin/yt-dlp";
 
 /* ===================== CORE RUNNER ===================== */
 function runYtDlp(args) {
+  // Use the last argument (URL or search query) as a readable label
+  const label = args[args.length - 1] || "unknown";
+  const shortLabel = label.length > 60 ? label.slice(0, 57) + "..." : label;
+
+  console.time(`yt-dlp → ${shortLabel}`);
+
   return new Promise((resolve, reject) => {
     const proc = spawn(YTDLP, args);
 
@@ -22,6 +28,8 @@ function runYtDlp(args) {
     proc.stderr.on("data", d => (stderr += d));
 
     proc.on("close", code => {
+      console.timeEnd(`yt-dlp → ${shortLabel}`);
+
       if (code !== 0) {
         return reject(new Error(stderr || "yt-dlp failed"));
       }
@@ -59,10 +67,14 @@ const COMMON_ARGS = [
 
 /* ===================== SEARCH ===================== */
 export async function searchVideos(query) {
+  console.time(`searchVideos: "${query}"`);
+
   const data = await runYtDlp([
     ...COMMON_ARGS,
     `ytsearch20:${query}`
   ]);
+
+  console.timeEnd(`searchVideos: "${query}"`);
 
   return Array.isArray(data.entries)
     ? data.entries.map(normalizeVideo).filter(Boolean)
@@ -70,12 +82,15 @@ export async function searchVideos(query) {
 }
 
 /* ===================== TRENDING ===================== */
-// Updated to a reliable, active global music trending playlist (loads fast, full of playable videos)
 export async function getTrending() {
+  console.time("getTrending");
+
   const data = await runYtDlp([
     ...COMMON_ARGS,
     "https://www.youtube.com/playlist?list=PL4fGSI1pDJn6jXS_Tv_Fvv2fA5y0E9VY6"
   ]);
+
+  console.timeEnd("getTrending");
 
   return Array.isArray(data.entries)
     ? data.entries.map(normalizeVideo).filter(Boolean)
@@ -84,13 +99,15 @@ export async function getTrending() {
 
 /* ===================== VIDEO DETAILS ===================== */
 export async function getVideoInfo(id) {
+  console.time(`getVideoInfo: ${id}`);
+
   const data = await runYtDlp([
     "-J",
     "--cookies", COOKIES_PATH,
     `https://www.youtube.com/watch?v=${id}`
   ]);
 
-  // Check for at least one Safari-compatible format (combined MP4 + H.264)
+  // Check for Safari-compatible format
   const hasCompatibleFormat = Array.isArray(data.formats)
     ? data.formats.some(f =>
         f.url &&
@@ -101,10 +118,8 @@ export async function getVideoInfo(id) {
       )
     : false;
 
-  // Add a flag for the frontend to know if it's playable on Safari
   const isSafariPlayable = hasCompatibleFormat;
 
-  // Always prefer compatible formats if available
   const compatibleFormats = hasCompatibleFormat
     ? data.formats.filter(f =>
         f.url &&
@@ -117,6 +132,8 @@ export async function getVideoInfo(id) {
 
   const formatsToUse = compatibleFormats.length > 0 ? compatibleFormats : (data.formats || []);
 
+  console.timeEnd(`getVideoInfo: ${id}`);
+
   return {
     id: data.id,
     title: data.title,
@@ -125,16 +142,20 @@ export async function getVideoInfo(id) {
     uploader: data.uploader,
     view_count: data.view_count,
     formats: formatsToUse,
-    isSafariPlayable  // New flag: true if has direct H.264/MP4 stream
+    isSafariPlayable
   };
 }
 
 /* ===================== RELATED ===================== */
 export async function getRelated(id) {
+  console.time(`getRelated: ${id}`);
+
   const data = await runYtDlp([
     ...COMMON_ARGS,
     `https://www.youtube.com/watch?v=${id}&list=RD${id}`
   ]);
+
+  console.timeEnd(`getRelated: ${id}`);
 
   return Array.isArray(data.entries)
     ? data.entries.map(normalizeVideo).filter(Boolean)
@@ -143,10 +164,14 @@ export async function getRelated(id) {
 
 /* ===================== CHANNEL ===================== */
 export async function getChannel(channelId) {
+  console.time(`getChannel: ${channelId}`);
+
   const data = await runYtDlp([
     ...COMMON_ARGS,
     `https://www.youtube.com/channel/${channelId}`
   ]);
+
+  console.timeEnd(`getChannel: ${channelId}`);
 
   return Array.isArray(data.entries)
     ? data.entries.map(normalizeVideo).filter(Boolean)
