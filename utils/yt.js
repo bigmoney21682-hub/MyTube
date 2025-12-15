@@ -50,17 +50,49 @@ function normalizeVideo(v) {
   };
 }
 
+/* ===================== COMMON PLAYLIST ARGS ===================== */
+const COMMON_ARGS = [
+  "-J",
+  "--flat-playlist",
+  "--cookies", COOKIES_PATH,
+];
+
+/* ===================== SEARCH ===================== */
+export async function searchVideos(query) {
+  const data = await runYtDlp([
+    ...COMMON_ARGS,
+    `ytsearch20:${query}`
+  ]);
+
+  return Array.isArray(data.entries)
+    ? data.entries.map(normalizeVideo).filter(Boolean)
+    : [];
+}
+
+/* ===================== TRENDING ===================== */
+// Note: The old playlist ID "PLBCF2DAC6FFB574DE" appears outdated (empty/slow in 2025).
+// Switching to the current global Music Trending playlist for faster, relevant results.
+// If you prefer non-music trending, we can explore alternatives later.
+export async function getTrending() {
+  const data = await runYtDlp([
+    ...COMMON_ARGS,
+    "https://www.youtube.com/playlist?list=PL4fGSI1pDJn6jXS_Tv_Fvv2fA5y0E9VY6"
+  ]);
+
+  return Array.isArray(data.entries)
+    ? data.entries.map(normalizeVideo).filter(Boolean)
+    : [];
+}
+
 /* ===================== VIDEO DETAILS ===================== */
 export async function getVideoInfo(id) {
   const data = await runYtDlp([
     "-J",
     "--cookies", COOKIES_PATH,
-    "--js-runtimes", "node",
     `https://www.youtube.com/watch?v=${id}`
   ]);
 
-  // Prefer Safari-compatible combined MP4 + H.264 formats
-  // Fall back to any combined formats if none available (rare, but prevents null)
+  // Prefer Safari-compatible combined MP4 + H.264 formats (fast direct URLs)
   const compatibleFormats = Array.isArray(data.formats)
     ? data.formats.filter(f =>
         f.url &&
@@ -80,49 +112,14 @@ export async function getVideoInfo(id) {
     duration: data.duration,
     uploader: data.uploader,
     view_count: data.view_count,
-    formats: formatsToUse  // Safari-safe if available, otherwise whatever exists
+    formats: formatsToUse
   };
-}
-
-/* ===================== SEARCH ===================== */
-export async function searchVideos(query) {
-  const data = await runYtDlp([
-    "-J",
-    "--flat-playlist",
-    "--cookies", COOKIES_PATH,
-    "--js-runtimes", "node",
-    `ytsearch20:${query}`
-  ]);
-
-  return Array.isArray(data.entries)
-    ? data.entries.map(normalizeVideo).filter(Boolean)
-    : [];
-}
-
-/* ===================== TRENDING ===================== */
-export async function getTrending() {
-  const playlistId = "PLBCF2DAC6FFB574DE";
-
-  const data = await runYtDlp([
-    "-J",
-    "--flat-playlist",
-    "--cookies", COOKIES_PATH,
-    "--js-runtimes", "node",
-    `https://www.youtube.com/playlist?list=${playlistId}`
-  ]);
-
-  return Array.isArray(data.entries)
-    ? data.entries.map(normalizeVideo).filter(Boolean)
-    : [];
 }
 
 /* ===================== RELATED ===================== */
 export async function getRelated(id) {
   const data = await runYtDlp([
-    "-J",
-    "--flat-playlist",
-    "--cookies", COOKIES_PATH,
-    "--js-runtimes", "node",
+    ...COMMON_ARGS,
     `https://www.youtube.com/watch?v=${id}&list=RD${id}`
   ]);
 
@@ -134,10 +131,7 @@ export async function getRelated(id) {
 /* ===================== CHANNEL ===================== */
 export async function getChannel(channelId) {
   const data = await runYtDlp([
-    "-J",
-    "--flat-playlist",
-    "--cookies", COOKIES_PATH,
-    "--js-runtimes", "node",
+    ...COMMON_ARGS,
     `https://www.youtube.com/channel/${channelId}`
   ]);
 
