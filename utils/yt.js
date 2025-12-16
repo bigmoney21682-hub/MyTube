@@ -63,6 +63,7 @@ const COMMON_ARGS = [
   "-J",
   "--flat-playlist",
   "--cookies", COOKIES_PATH,
+  "--playlist-end", "20"  // Limit to 20 items for speed (adjust as needed)
 ];
 
 /* ===================== SEARCH ===================== */
@@ -87,7 +88,7 @@ export async function getTrending() {
 
   const data = await runYtDlp([
     ...COMMON_ARGS,
-    "https://www.youtube.com/playlist?list=PL4fGSI1pDJn6jXS_Tv_Fvv2fA5y0E9VY6"
+    "https://www.youtube.com/playlist?list=PLFcGX84jKOu7fnNxRpajpvs-Zk3Za41ul"  // Updated to active 2025 Trending Music playlist
   ]);
 
   console.timeEnd("getTrending");
