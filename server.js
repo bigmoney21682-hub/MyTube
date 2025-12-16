@@ -63,16 +63,6 @@ app.get("/related", async (req, res) => {
   }
 });
 
-app.get("/channel/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    res.json(await getChannel(id));
-  } catch (e) {
-    console.error("Channel error:", e);
-    res.status(500).json([]);
-  }
-});
-
 /* ===================== HEALTH & KEEP-ALIVE ===================== */
 
 // Simple health check endpoint
