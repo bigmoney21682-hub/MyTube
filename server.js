@@ -6,7 +6,6 @@ import {
   searchVideos,
   getTrending,
   getVideoInfo,
-  getChannel,
   getRelated
 } from "./utils/yt.js";
 
